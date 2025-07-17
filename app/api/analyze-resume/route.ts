@@ -310,7 +310,7 @@ SCORING CRITERIA:
       }
       
       // Try to extract matched keywords
-      const matchedKeywordsMatch = analysisResponse.result.match(/"matchedKeywords":\s*\[(.*?)\]/s);
+      const matchedKeywordsMatch = analysisResponse.result.match(/"matchedKeywords":\s*\[(.*?)\]/);
       if (matchedKeywordsMatch) {
         try {
           const keywords = JSON.parse(`[${matchedKeywordsMatch[1]}]`);
