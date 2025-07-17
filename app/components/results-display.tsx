@@ -21,6 +21,7 @@ interface GeneratedContent {
   resume: string
   coverLetter: string
   companyName: string
+  usedFallback: boolean
 }
 
 interface ResultsDisplayProps {

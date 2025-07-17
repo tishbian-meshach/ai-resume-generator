@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import OpenAI from 'openai'
 
 export const maxDuration = 60
 
@@ -28,6 +29,21 @@ const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY
 // Function to get API URL based on selected model
 const getGoogleAPIURL = (model: string) => {
   return `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GOOGLE_API_KEY}`
+}
+
+// OpenRouter configuration for fallback
+const openai = new OpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY ,
+  defaultHeaders: {
+    "HTTP-Referer": "https://ai-resumex.vercel.app",
+    "X-Title": "AI Resume Generator",
+  },
+})
+
+// Use single OpenRouter model for all fallbacks
+const getOpenRouterModel = () => {
+  return "google/gemini-2.0-flash-exp:free"
 }
 
 // Target keywords for design internships
@@ -94,7 +110,36 @@ function cleanResumeContent(content: string): string {
   return cleaned.trim()
 }
 
-async function generateWithGemini(prompt: string, model: string): Promise<string> {
+// Fallback function using OpenRouter
+async function generateWithOpenRouter(prompt: string, model: string): Promise<string> {
+  try {
+    console.log(`Fallback: Using OpenRouter with model ${getOpenRouterModel()}`)
+    
+    const completion = await openai.chat.completions.create({
+      model: getOpenRouterModel(),
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      max_tokens: 4000,
+      temperature: 0.7,
+    })
+
+    const result = completion.choices[0]?.message?.content
+    if (!result) {
+      throw new Error("No content generated from OpenRouter")
+    }
+
+    return result
+  } catch (error) {
+    console.error("Error calling OpenRouter:", error)
+    throw error
+  }
+}
+
+async function generateWithGemini(prompt: string, model: string): Promise<{result: string, usedFallback: boolean}> {
   try {
     const response = await fetch(getGoogleAPIURL(model), {
       method: "POST",
@@ -123,6 +168,14 @@ async function generateWithGemini(prompt: string, model: string): Promise<string
     if (!response.ok) {
       const errorData = await response.text()
       console.error("Google API Error:", errorData)
+      
+      // Check if the error is a 503 (overloaded) or other retryable error
+      if (response.status === 503 || response.status === 429 || response.status === 502) {
+        console.log(`Google API returned ${response.status}, falling back to OpenRouter...`)
+        const fallbackResult = await generateWithOpenRouter(prompt, model)
+        return { result: fallbackResult, usedFallback: true }
+      }
+      
       throw new Error(`Google API request failed: ${response.status}`)
     }
 
@@ -132,9 +185,27 @@ async function generateWithGemini(prompt: string, model: string): Promise<string
       throw new Error("Invalid response format from Google API")
     }
 
-    return data.candidates[0].content.parts[0].text
+    return { result: data.candidates[0].content.parts[0].text, usedFallback: false }
   } catch (error) {
     console.error("Error calling Google Generative AI:", error)
+    
+    // If it's a network error or other failure, try OpenRouter as fallback
+    if (error instanceof Error && (
+      error.message.includes('fetch') || 
+      error.message.includes('network') || 
+      error.message.includes('503') ||
+      error.message.includes('overloaded')
+    )) {
+      console.log("Network error detected, falling back to OpenRouter...")
+      try {
+        const fallbackResult = await generateWithOpenRouter(prompt, model)
+        return { result: fallbackResult, usedFallback: true }
+      } catch (fallbackError) {
+        console.error("Both Google API and OpenRouter failed:", fallbackError)
+        throw new Error("Both primary and fallback AI services are unavailable")
+      }
+    }
+    
     throw error
   }
 }
@@ -142,6 +213,9 @@ async function generateWithGemini(prompt: string, model: string): Promise<string
 export async function POST(req: NextRequest) {
   try {
     const { personalInfo, jobDescription, selectedModel }: RequestBody = await req.json()
+    
+    // Track fallback usage
+    let usedFallback = false
 
     // Validate required fields
     if (!personalInfo.fullName || !personalInfo.email || !jobDescription) {
@@ -571,35 +645,39 @@ Instructions:
 6. Return exactly one word or phrase that represents the company name
 `
 
-    const companyNameResult = await generateWithGemini(companyNamePrompt, selectedModel)
-    const companyName = companyNameResult.trim()
+    const companyNameResponse = await generateWithGemini(companyNamePrompt, selectedModel)
+    const companyName = companyNameResponse.result.trim()
+    if (companyNameResponse.usedFallback) usedFallback = true
 
     console.log("Generating AI-enhanced resume with Gemini...")
 
     // Generate resume
-    const resumeResult = await generateWithGemini(resumePrompt, selectedModel)
+    const resumeResponse = await generateWithGemini(resumePrompt, selectedModel)
+    if (resumeResponse.usedFallback) usedFallback = true
     
     // Clean up any remaining instructional text
-    const cleanedResume = cleanResumeContent(resumeResult)
+    const cleanedResume = cleanResumeContent(resumeResponse.result)
     
     // Debug: Check if resume content is actually generated
     if (!cleanedResume || cleanedResume.length < 100) {
       console.error("Resume generation failed or produced minimal content")
-      console.log("Resume result:", resumeResult)
+      console.log("Resume result:", resumeResponse.result)
       throw new Error("Resume generation failed - insufficient content")
     }
 
     console.log("Generating personalized cover letter with Gemini...")
 
     // Generate cover letter
-    const coverLetterResult = await generateWithGemini(coverLetterPrompt, selectedModel)
+    const coverLetterResponse = await generateWithGemini(coverLetterPrompt, selectedModel)
+    if (coverLetterResponse.usedFallback) usedFallback = true
 
     console.log("AI-enhanced content generation completed successfully")
 
     return NextResponse.json({
       resume: cleanedResume,
-      coverLetter: coverLetterResult,
+      coverLetter: coverLetterResponse.result,
       companyName: companyName,
+      usedFallback: usedFallback,
     })
   } catch (error) {
     console.error("Error generating content:", error)

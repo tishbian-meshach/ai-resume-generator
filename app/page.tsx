@@ -29,6 +29,7 @@ interface GeneratedContent {
   resume: string
   coverLetter: string
   companyName: string
+  usedFallback: boolean
 }
 
 export default function ResumeGenerator() {
@@ -123,10 +124,19 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
       const data = await response.json()
       setGeneratedContent(data)
 
-      toast({
-        title: "Success!",
-        description: "Resume and cover letter paragraph generated successfully",
-      })
+      // Show different toast based on whether fallback was used
+      if (data.usedFallback) {
+        toast({
+          title: "Success! (Using OpenRouter Fallback)",
+          description: "Google's API was overloaded, so we used OpenRouter to generate your content successfully",
+          variant: "default",
+        })
+      } else {
+        toast({
+          title: "Success!",
+          description: "Resume and cover letter paragraph generated successfully",
+        })
+      }
     } catch (error) {
       toast({
         title: "Error",
