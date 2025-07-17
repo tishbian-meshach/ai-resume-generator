@@ -4,7 +4,8 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, FileText, User, Briefcase } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2, FileText, User, Briefcase, Bot } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ProfileSummary } from "./components/profile-summary"
 import { ProfilePopup } from "./components/profile-popup"
@@ -74,6 +75,7 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
   const [jobDescription, setJobDescription] = useState("")
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedModel, setSelectedModel] = useState("gemini-2.5-pro")
   const { toast } = useToast()
 
   const handlePersonalInfoChange = (field: keyof PersonalInfo, value: string) => {
@@ -110,6 +112,7 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
         body: JSON.stringify({
           personalInfo,
           jobDescription,
+          selectedModel,
         }),
       })
 
@@ -177,6 +180,24 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
                 rows={10}
                 className="w-full"
               />
+              
+              {/* Model Selection */}
+              <div className="flex items-center gap-4 mt-4">
+                <div className="flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">AI Model:</span>
+                </div>
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Select AI model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                    <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <Button onClick={generateContent} disabled={isLoading} className="w-full mt-4" size="lg">
                 {isLoading ? (
                   <>

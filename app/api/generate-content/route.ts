@@ -19,11 +19,16 @@ interface PersonalInfo {
 interface RequestBody {
   personalInfo: PersonalInfo
   jobDescription: string
+  selectedModel: string
 }
 
 // Google Generative AI API configuration
 const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY
-const GOOGLE_API_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-pro:generateContent?key=${GOOGLE_API_KEY}`
+
+// Function to get API URL based on selected model
+const getGoogleAPIURL = (model: string) => {
+  return `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GOOGLE_API_KEY}`
+}
 
 // Target keywords for design internships
 const INCLUDE_KEYWORDS = [
@@ -89,9 +94,9 @@ function cleanResumeContent(content: string): string {
   return cleaned.trim()
 }
 
-async function generateWithGemini(prompt: string): Promise<string> {
+async function generateWithGemini(prompt: string, model: string): Promise<string> {
   try {
-    const response = await fetch(GOOGLE_API_URL, {
+    const response = await fetch(getGoogleAPIURL(model), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -136,12 +141,21 @@ async function generateWithGemini(prompt: string): Promise<string> {
 
 export async function POST(req: NextRequest) {
   try {
-    const { personalInfo, jobDescription }: RequestBody = await req.json()
+    const { personalInfo, jobDescription, selectedModel }: RequestBody = await req.json()
 
     // Validate required fields
     if (!personalInfo.fullName || !personalInfo.email || !jobDescription) {
       return NextResponse.json(
         { error: "Missing required fields: name, email, and job description are required" },
+        { status: 400 },
+      )
+    }
+
+    // Validate selected model
+    const validModels = ["gemini-2.5-pro", "gemini-2.0-flash"]
+    if (!selectedModel || !validModels.includes(selectedModel)) {
+      return NextResponse.json(
+        { error: "Invalid model selected" },
         { status: 400 },
       )
     }
@@ -557,13 +571,13 @@ Instructions:
 6. Return exactly one word or phrase that represents the company name
 `
 
-    const companyNameResult = await generateWithGemini(companyNamePrompt)
+    const companyNameResult = await generateWithGemini(companyNamePrompt, selectedModel)
     const companyName = companyNameResult.trim()
 
     console.log("Generating AI-enhanced resume with Gemini...")
 
     // Generate resume
-    const resumeResult = await generateWithGemini(resumePrompt)
+    const resumeResult = await generateWithGemini(resumePrompt, selectedModel)
     
     // Clean up any remaining instructional text
     const cleanedResume = cleanResumeContent(resumeResult)
@@ -578,7 +592,7 @@ Instructions:
     console.log("Generating personalized cover letter with Gemini...")
 
     // Generate cover letter
-    const coverLetterResult = await generateWithGemini(coverLetterPrompt)
+    const coverLetterResult = await generateWithGemini(coverLetterPrompt, selectedModel)
 
     console.log("AI-enhanced content generation completed successfully")
 
