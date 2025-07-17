@@ -27,6 +27,7 @@ interface PersonalInfo {
 interface GeneratedContent {
   resume: string
   coverLetter: string
+  companyName: string
 }
 
 export default function ResumeGenerator() {
@@ -73,42 +74,10 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
   const [jobDescription, setJobDescription] = useState("")
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [companyName, setCompanyName] = useState("")
   const { toast } = useToast()
 
   const handlePersonalInfoChange = (field: keyof PersonalInfo, value: string) => {
     setPersonalInfo((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const extractCompanyName = (jobDescription: string): string => {
-    // Look for common patterns for company names
-    const patterns = [
-      /Company:\s*(.+)/i,
-      /Organization:\s*(.+)/i,
-      /(?:at|for|with|join)\s+([A-Z][a-zA-Z\s&.,]+?)(?:\s+(?:is|are|we|our|the|looking|seeking|based|located))/i,
-      /(?:^|\n)([A-Z][a-zA-Z\s&.,]+?)\s+is\s+(?:a|an|the|seeking|looking|hiring)/i,
-      /(?:^|\n)([A-Z][a-zA-Z\s&.,]+?)\s+(?:seeks|wants|needs|requires)/i,
-      /(?:Join|Work at|Career at|Position at|Role at|Opportunity at)\s+([A-Z][a-zA-Z\s&.,]+)/i,
-      /(?:^|\n)([A-Z][a-zA-Z\s&.,]+?)\s+(?:team|company|organization)/i,
-    ]
-    
-    for (const pattern of patterns) {
-      const match = jobDescription.match(pattern)
-      if (match && match[1]) {
-        const companyName = match[1].trim()
-        // Clean up common suffixes and prefixes
-        const cleanedName = companyName
-          .replace(/\s+(?:is|are|we|our|the|team|company|organization).*$/i, '')
-          .replace(/[.,;:!?]+$/, '')
-          .trim()
-        
-        if (cleanedName.length > 1 && cleanedName.length < 50) {
-          return cleanedName
-        }
-      }
-    }
-    
-    return ""
   }
 
   const generateContent = async () => {
@@ -131,10 +100,6 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
     }
 
     setIsLoading(true)
-
-    // Extract company name from job description
-    const extractedCompanyName = extractCompanyName(jobDescription)
-    setCompanyName(extractedCompanyName)
 
     try {
       const response = await fetch("/api/generate-content", {
@@ -240,7 +205,7 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
                 linkedIn: personalInfo.linkedIn,
                 portfolio: personalInfo.portfolio,
               }}
-              companyName={companyName}
+              companyName={generatedContent.companyName}
             />
           ) : (
             <Card>

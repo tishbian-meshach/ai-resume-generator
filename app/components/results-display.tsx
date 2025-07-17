@@ -20,6 +20,7 @@ interface PersonalInfo {
 interface GeneratedContent {
   resume: string
   coverLetter: string
+  companyName: string
 }
 
 interface ResultsDisplayProps {

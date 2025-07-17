@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
 
     // Enhanced Resume Prompt for Modern Designer
     const resumePrompt = `
-You are an expert resume writer specializing in ATS-friendly, single-page resumes for modern designers and design interns. Create a professional, concise, ATS-optimized resume for Tishbian Meshach S that fits on ONE PAGE ONLY based on the following information:
+You are an expert resume writer. Create a professional, ATS-optimized resume for Tishbian Meshach S based on the following information:
 
 CANDIDATE PROFILE:
 - Name: ${personalInfo.fullName}
@@ -471,7 +471,16 @@ FINAL FORMATTING REQUIREMENTS FOR GEMINI 2.5 PRO:
 7. Professional summary maximum 3 lines
 8. Total resume must fit on ONE PAGE ONLY
 
-Generate a complete, professional, ULTRA-COMPACT SINGLE-PAGE resume that is perfectly tailored to this specific job description. The resume must pass ATS scanning and position Tishbian as the ideal candidate for this exact role. CRITICAL: Ensure the resume fits on exactly ONE PAGE with no wasted space.
+Generate a complete, professional, ULTRA-COMPACT SINGLE-PAGE resume with ALL sections properly filled:
+- CONTACT INFORMATION (header)
+- PROFESSIONAL SUMMARY (2-3 lines)
+- CORE COMPETENCIES (4 categories, each 1 line)
+- PROFESSIONAL EXPERIENCE (2 jobs, 2 bullets each)
+- PROJECTS (2 projects, 2 bullets each)
+- EDUCATION (1 line)
+- CERTIFICATIONS (3-4 relevant ones)
+
+The resume must pass ATS scanning and position Tishbian as the ideal candidate for this exact role. CRITICAL: Include ALL resume sections with proper content.
 `
 
     // Enhanced Cover Letter Prompt - Main Content Paragraph Only
@@ -530,6 +539,27 @@ UNIQUE SELLING POINTS TO WEAVE IN NATURALLY:
 Create a single, engaging paragraph that makes the hiring manager want to meet this person - someone who brings both proven experience and fresh energy, with a genuine passion for design and the specific company/role.
 `
 
+    console.log("Extracting company name from job description...")
+
+    // Extract company name using Gemini AI
+    const companyNamePrompt = `
+Extract the company name from this job description. Return ONLY the company name, nothing else.
+
+Job Description:
+${jobDescription}
+
+Instructions:
+1. Look for the company name in the job posting
+2. Return only the company name (e.g., "Google", "Microsoft", "Apple")
+3. If multiple companies are mentioned, return the hiring company
+4. If no company name is found, return "Company"
+5. Do not include "Inc.", "LLC", "Corp.", or other suffixes unless part of the brand name
+6. Return exactly one word or phrase that represents the company name
+`
+
+    const companyNameResult = await generateWithGemini(companyNamePrompt)
+    const companyName = companyNameResult.trim()
+
     console.log("Generating AI-enhanced resume with Gemini...")
 
     // Generate resume
@@ -537,6 +567,13 @@ Create a single, engaging paragraph that makes the hiring manager want to meet t
     
     // Clean up any remaining instructional text
     const cleanedResume = cleanResumeContent(resumeResult)
+    
+    // Debug: Check if resume content is actually generated
+    if (!cleanedResume || cleanedResume.length < 100) {
+      console.error("Resume generation failed or produced minimal content")
+      console.log("Resume result:", resumeResult)
+      throw new Error("Resume generation failed - insufficient content")
+    }
 
     console.log("Generating personalized cover letter with Gemini...")
 
@@ -548,6 +585,7 @@ Create a single, engaging paragraph that makes the hiring manager want to meet t
     return NextResponse.json({
       resume: cleanedResume,
       coverLetter: coverLetterResult,
+      companyName: companyName,
     })
   } catch (error) {
     console.error("Error generating content:", error)
