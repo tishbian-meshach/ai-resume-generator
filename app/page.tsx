@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ProfileSummary } from "./components/profile-summary"
 import { ProfilePopup } from "./components/profile-popup"
 import { ResultsDisplay } from "./components/results-display"
+import { ResumeAnalyzer } from "./components/resume-analyzer"
 
 interface PersonalInfo {
   fullName: string
@@ -77,10 +78,20 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedModel, setSelectedModel] = useState("gemini-2.5-pro")
+  const [showAnalyzer, setShowAnalyzer] = useState(false)
   const { toast } = useToast()
 
   const handlePersonalInfoChange = (field: keyof PersonalInfo, value: string) => {
     setPersonalInfo((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleResumeUpdate = (fixedResume: string) => {
+    if (generatedContent) {
+      setGeneratedContent({
+        ...generatedContent,
+        resume: fixedResume
+      })
+    }
   }
 
   const generateContent = async () => {
@@ -123,6 +134,7 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
 
       const data = await response.json()
       setGeneratedContent(data)
+      setShowAnalyzer(true) // Show analyzer after successful generation
 
       // Show different toast based on whether fallback was used
       if (data.usedFallback) {
@@ -226,18 +238,30 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
 
           {/* Results Section */}
           {generatedContent ? (
-            <ResultsDisplay 
-              generatedContent={generatedContent}
-              personalInfo={{
-                fullName: personalInfo.fullName,
-                email: personalInfo.email,
-                phone: personalInfo.phone,
-                location: personalInfo.location,
-                linkedIn: personalInfo.linkedIn,
-                portfolio: personalInfo.portfolio,
-              }}
-              companyName={generatedContent.companyName}
-            />
+            <div className="space-y-6">
+              <ResultsDisplay 
+                generatedContent={generatedContent}
+                personalInfo={{
+                  fullName: personalInfo.fullName,
+                  email: personalInfo.email,
+                  phone: personalInfo.phone,
+                  location: personalInfo.location,
+                  linkedIn: personalInfo.linkedIn,
+                  portfolio: personalInfo.portfolio,
+                }}
+                companyName={generatedContent.companyName}
+              />
+              
+              {/* Resume Analyzer Section */}
+              {showAnalyzer && (
+                <ResumeAnalyzer
+                  resume={generatedContent.resume}
+                  jobDescription={jobDescription}
+                  selectedModel={selectedModel}
+                  onResumeUpdated={handleResumeUpdate}
+                />
+              )}
+            </div>
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-16">
