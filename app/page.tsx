@@ -79,6 +79,7 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
   const [isLoading, setIsLoading] = useState(false)
   const [selectedModel, setSelectedModel] = useState("gemini-2.5-pro")
   const [showAnalyzer, setShowAnalyzer] = useState(false)
+  const [resetAnalysis, setResetAnalysis] = useState(false)
   const { toast } = useToast()
 
   const handlePersonalInfoChange = (field: keyof PersonalInfo, value: string) => {
@@ -114,6 +115,10 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
     }
 
     setIsLoading(true)
+    
+    // Reset analysis when generating new content
+    setResetAnalysis(true)
+    setTimeout(() => setResetAnalysis(false), 100) // Reset the flag after a brief moment
 
     try {
       const response = await fetch("/api/generate-content", {
@@ -259,6 +264,7 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
                   jobDescription={jobDescription}
                   selectedModel={selectedModel}
                   onResumeUpdated={handleResumeUpdate}
+                  resetAnalysis={resetAnalysis}
                 />
               )}
             </div>

@@ -1,11 +1,12 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Download, Copy, FileText } from "lucide-react"
+import { Download, Copy, FileText, Edit3, X } from "lucide-react"
 import { ResumeTemplate } from "./resume-template"
+import { EditableResumeTemplate, EditableResumeTemplateRef } from "./editable-resume-template"
 import { useToast } from "@/hooks/use-toast"
 
 interface PersonalInfo {
@@ -31,19 +32,67 @@ interface ResultsDisplayProps {
 }
 
 export function ResultsDisplay({ generatedContent, personalInfo, companyName }: ResultsDisplayProps) {
-  const resumeRef = useRef<HTMLDivElement>(null)
+  const editableResumeRef = useRef<EditableResumeTemplateRef>(null)
+  const resumeContentRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedResumeContent, setEditedResumeContent] = useState(generatedContent.resume)
+  const [editedPersonalInfo, setEditedPersonalInfo] = useState(personalInfo)
+  const [lastExternalUpdate, setLastExternalUpdate] = useState(generatedContent.resume)
+
+  // Update edited content when generatedContent changes (e.g., from resume fix)
+  useEffect(() => {
+    // Only update if this is a different external update (not from user editing)
+    if (generatedContent.resume !== lastExternalUpdate) {
+      setEditedResumeContent(generatedContent.resume)
+      setLastExternalUpdate(generatedContent.resume)
+      // Exit editing mode when content is updated from external source (like resume fix)
+      setIsEditing(false)
+    }
+  }, [generatedContent.resume, lastExternalUpdate])
+
+  // Update edited personal info when personalInfo changes
+  useEffect(() => {
+    setEditedPersonalInfo(personalInfo)
+  }, [personalInfo])
 
   const generatePDF = async () => {
-    if (!resumeRef.current) return
+    console.log("generatePDF called")
+    console.log("resumeContentRef.current:", resumeContentRef.current)
+    
+    if (!resumeContentRef.current) {
+      console.error("resumeContentRef.current is null")
+      return
+    }
 
     try {
       // Create a new window for printing
       const printWindow = window.open("", "_blank")
-      if (!printWindow) return
+      if (!printWindow) {
+        console.error("Failed to open print window")
+        return
+      }
 
       // Get the resume content
-      const resumeHTML = resumeRef.current.innerHTML
+      let resumeHTML = resumeContentRef.current.innerHTML
+      console.log("resumeHTML length:", resumeHTML?.length)
+      console.log("resumeHTML preview:", resumeHTML?.substring(0, 200))
+      
+      // Fallback: try to get content from EditableResumeTemplate if direct method fails
+      if (!resumeHTML && editableResumeRef.current && typeof editableResumeRef.current.getHTMLContent === 'function') {
+        console.log("Trying fallback method...")
+        resumeHTML = editableResumeRef.current.getHTMLContent() || ""
+      }
+      
+      if (!resumeHTML) {
+        console.error("No HTML content found")
+        toast({
+          title: "Error",
+          description: "Could not generate PDF - no content found",
+          variant: "destructive",
+        })
+        return
+      }
 
       // Create filename with company name
       const fileName = companyName 
@@ -51,7 +100,8 @@ export function ResultsDisplay({ generatedContent, personalInfo, companyName }: 
         : `${personalInfo.fullName.replace(/\s+/g, '_')}_Resume`
 
       // Create the print document
-      printWindow.document.write(`
+      console.log("Writing to print window...")
+      const htmlContent = `
         <!DOCTYPE html>
         <html>
           <head>
@@ -172,9 +222,12 @@ export function ResultsDisplay({ generatedContent, personalInfo, companyName }: 
             </div>
           </body>
         </html>
-      `)
-
+      `
+      
+      console.log("HTML content to write:", htmlContent.substring(0, 500))
+      printWindow.document.write(htmlContent)
       printWindow.document.close()
+      console.log("Document written and closed")
 
       // Wait for content to load then print
       printWindow.onload = () => {
@@ -186,6 +239,14 @@ export function ResultsDisplay({ generatedContent, personalInfo, companyName }: 
     } catch (error) {
       console.error("Error generating PDF:", error)
     }
+  }
+
+  const handleEditToggle = () => {
+    if (isEditing) {
+      // Close all editing windows when exiting edit mode
+      editableResumeRef.current?.closeAllEditing()
+    }
+    setIsEditing(!isEditing)
   }
 
   const copyToClipboard = async (text: string, type: string) => {
@@ -220,15 +281,34 @@ export function ResultsDisplay({ generatedContent, personalInfo, companyName }: 
           <TabsContent value="resume" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Resume Preview</h3>
-              <Button onClick={generatePDF} className="flex items-center gap-2">
-                <Download className="h-4 w-4" />
-                Download PDF
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={handleEditToggle} 
+                  variant={isEditing ? "secondary" : "outline"}
+                  className={`flex items-center gap-2 ${isEditing ? "bg-gray-500 hover:bg-gray-600 text-white" : ""}`}
+                >
+                  {isEditing ? <X className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+                  {isEditing ? "Exit Edit" : "Edit Resume"}
+                </Button>
+                {!isEditing && (
+                  <Button onClick={generatePDF} className="flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    Download PDF
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="border rounded-lg overflow-hidden bg-gray-50">
-              <div className="max-h-96 overflow-y-auto">
-                <ResumeTemplate ref={resumeRef} resumeContent={generatedContent.resume} personalInfo={personalInfo} />
+              <div className="max-h-96 overflow-y-auto" ref={resumeContentRef}>
+                <EditableResumeTemplate 
+                  ref={editableResumeRef} 
+                  resumeContent={editedResumeContent} 
+                  personalInfo={editedPersonalInfo}
+                  isEditing={isEditing}
+                  onContentChange={(newContent) => setEditedResumeContent(newContent)}
+                  onPersonalInfoChange={(newPersonalInfo) => setEditedPersonalInfo(newPersonalInfo)}
+                />
               </div>
             </div>
 
@@ -236,10 +316,14 @@ export function ResultsDisplay({ generatedContent, personalInfo, companyName }: 
               <div className="flex items-start gap-2">
                 <FileText className="h-4 w-4 mt-0.5 text-blue-600" />
                 <div>
-                  <p className="font-medium text-blue-900">PDF Download Instructions:</p>
+                  <p className="font-medium text-blue-900">
+                    {isEditing ? "Inline Editing Mode:" : "PDF Download Instructions:"}
+                  </p>
                   <p>
-                    Click "Download PDF" to open the print dialog. Choose "Save as PDF" as your destination to download the
-                    resume as a PDF file.
+                    {isEditing 
+                      ? "Hover over any section to see edit buttons. Click to edit content directly in the formatted resume."
+                      : "Click \"Download PDF\" to open the print dialog. Choose \"Save as PDF\" as your destination. Click \"Edit Resume\" to make changes."
+                    }
                   </p>
                 </div>
               </div>

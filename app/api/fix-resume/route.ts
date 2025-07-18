@@ -33,6 +33,65 @@ const getOpenRouterModel = () => {
   return "google/gemini-2.0-flash-exp:free"
 }
 
+// Function to clean up excessive bold formatting
+function cleanExcessiveBoldFormatting(text: string): string {
+  // Split text into lines to process each line
+  const lines = text.split('\n')
+  
+  const cleanedLines = lines.map(line => {
+    // Skip section headers (lines that are entirely bold and uppercase)
+    if (line.match(/^\*\*[A-Z\s]+\*\*$/)) {
+      return line // Keep section headers as they are
+    }
+    
+    // For content lines, limit bold formatting
+    // Count the number of bold segments in the line
+    const boldMatches = line.match(/\*\*[^*]+\*\*/g) || []
+    
+    // If there are more than 2 bold segments in a single line, remove excess bold
+    if (boldMatches.length > 2) {
+      // Keep only the first 2 bold segments, remove bold from the rest
+      let processedLine = line
+      let boldCount = 0
+      
+      processedLine = processedLine.replace(/\*\*([^*]+)\*\*/g, (match, content) => {
+        boldCount++
+        if (boldCount <= 2) {
+          return match // Keep the first 2 bold segments
+        } else {
+          return content // Remove bold formatting from excess segments
+        }
+      })
+      
+      return processedLine
+    }
+    
+    // For lines with 1-2 bold segments, check if they're appropriate
+    if (boldMatches.length > 0) {
+      // Remove bold from common words that shouldn't be bold
+      const inappropriateBoldWords = [
+        'and', 'or', 'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+        'from', 'up', 'about', 'into', 'through', 'during', 'before', 'after', 'above',
+        'below', 'between', 'among', 'under', 'over', 'is', 'are', 'was', 'were', 'be',
+        'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+        'could', 'should', 'may', 'might', 'must', 'can', 'shall'
+      ]
+      
+      let processedLine = line
+      inappropriateBoldWords.forEach(word => {
+        const regex = new RegExp(`\\*\\*(${word})\\*\\*`, 'gi')
+        processedLine = processedLine.replace(regex, '$1')
+      })
+      
+      return processedLine
+    }
+    
+    return line
+  })
+  
+  return cleanedLines.join('\n')
+}
+
 // Fallback function using OpenRouter
 async function generateWithOpenRouter(prompt: string, model: string): Promise<string> {
   try {
@@ -199,17 +258,28 @@ CRITICAL RULES:
 - DO improve bullet points to be more ATS-friendly
 - DO ensure keyword optimization throughout
 
-Generate an improved version of the resume that addresses all the issues identified in the analysis report while maintaining authenticity and professionalism.
+FORMATTING RULES:
+- Use **bold** ONLY for section headers (like **PROFESSIONAL SUMMARY**, **EXPERIENCE**, etc.)
+- Do NOT use **bold** for individual keywords within sentences
+- Do NOT use **bold** for skills, technologies, or job-related terms in paragraphs
+- Keep the text natural and readable without excessive formatting
+- Integrate keywords naturally into sentences without highlighting them
+- Maintain clean, professional formatting throughout
+
+Generate an improved version of the resume that addresses all the issues identified in the analysis report while maintaining authenticity, professionalism, and clean formatting without excessive bold text.
 `
 
     // Generate fixed resume
     const fixResponse = await generateWithGemini(fixPrompt, selectedModel)
     if (fixResponse.usedFallback) usedFallback = true
 
+    // Clean up excessive bold formatting
+    const cleanedResume = cleanExcessiveBoldFormatting(fixResponse.result)
+
     console.log("Resume fix completed successfully")
 
     return NextResponse.json({
-      fixedResume: fixResponse.result,
+      fixedResume: cleanedResume,
       usedFallback: usedFallback,
     })
   } catch (error) {

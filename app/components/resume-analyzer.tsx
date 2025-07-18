@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Search, Wrench, CheckCircle, AlertCircle, Target, TrendingUp, Users } from "lucide-react"
+import { Loader2, Search, Wrench, CheckCircle, AlertCircle, Target, TrendingUp, Users, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Progress } from "@/components/ui/progress"
 
@@ -27,14 +27,25 @@ interface ResumeAnalyzerProps {
   jobDescription: string
   selectedModel: string
   onResumeUpdated: (fixedResume: string) => void
+  resetAnalysis?: boolean
 }
 
-export function ResumeAnalyzer({ resume, jobDescription, selectedModel, onResumeUpdated }: ResumeAnalyzerProps) {
+export function ResumeAnalyzer({ resume, jobDescription, selectedModel, onResumeUpdated, resetAnalysis }: ResumeAnalyzerProps) {
   const [analysis, setAnalysis] = useState<ATSAnalysis | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isFixing, setIsFixing] = useState(false)
   const [usedFallback, setUsedFallback] = useState(false)
   const { toast } = useToast()
+
+  // Reset analysis when resetAnalysis prop changes
+  useEffect(() => {
+    if (resetAnalysis) {
+      setAnalysis(null)
+      setIsAnalyzing(false)
+      setIsFixing(false)
+      setUsedFallback(false)
+    }
+  }, [resetAnalysis])
 
   const analyzeResume = async () => {
     setIsAnalyzing(true)
@@ -289,9 +300,31 @@ export function ResumeAnalyzer({ resume, jobDescription, selectedModel, onResume
               </div>
             </div>
 
-            {/* Fix Resume Button */}
-            <div className="pt-4 border-t">
-              <Button onClick={fixResume} disabled={isFixing} size="lg" className="w-full">
+            {/* Action Buttons */}
+            <div className="pt-4 border-t space-y-3">
+              {/* Reanalyze Button */}
+              <Button 
+                onClick={analyzeResume} 
+                disabled={isAnalyzing || isFixing} 
+                variant="outline" 
+                size="lg" 
+                className="w-full"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Reanalyzing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Reanalyze Resume
+                  </>
+                )}
+              </Button>
+
+              {/* Fix Resume Button */}
+              <Button onClick={fixResume} disabled={isFixing || isAnalyzing} size="lg" className="w-full">
                 {isFixing ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
