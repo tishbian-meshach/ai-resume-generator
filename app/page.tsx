@@ -31,6 +31,7 @@ interface GeneratedContent {
   coverLetter: string
   companyName: string
   usedFallback: boolean
+  customHtmlTemplate?: string
 }
 
 export default function ResumeGenerator() {
@@ -80,6 +81,7 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
   const [selectedModel, setSelectedModel] = useState("gemini-2.5-pro")
   const [showAnalyzer, setShowAnalyzer] = useState(false)
   const [resetAnalysis, setResetAnalysis] = useState(false)
+  const [isGeneratingCustomStyle, setIsGeneratingCustomStyle] = useState(false)
   const { toast } = useToast()
 
   const handlePersonalInfoChange = (field: keyof PersonalInfo, value: string) => {
@@ -92,6 +94,99 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
         ...generatedContent,
         resume: fixedResume
       })
+    }
+  }
+
+  const generateCustomStyle = async (styleInstructions: string, isSurpriseMe: boolean = false) => {
+    if (!generatedContent) {
+      toast({
+        title: "Error",
+        description: "Please generate resume content first",
+        variant: "destructive",
+      })
+      return false
+    }
+
+    if (!isSurpriseMe && !styleInstructions.trim()) {
+      toast({
+        title: "Error",
+        description: "Please provide custom style instructions",
+        variant: "destructive",
+      })
+      return false
+    }
+
+    setIsGeneratingCustomStyle(true)
+
+    try {
+      const response = await fetch("/api/generate-custom-style", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          resumeContent: generatedContent.resume,
+          personalInfo: {
+            fullName: personalInfo.fullName,
+            email: personalInfo.email,
+            phone: personalInfo.phone,
+            location: personalInfo.location,
+            linkedIn: personalInfo.linkedIn,
+            portfolio: personalInfo.portfolio,
+          },
+          styleInstructions: styleInstructions,
+          isSurpriseMe: isSurpriseMe,
+          selectedModel,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to generate custom style")
+      }
+
+      const data = await response.json()
+      
+      setGeneratedContent({
+        ...generatedContent,
+        customHtmlTemplate: data.htmlTemplate
+      })
+
+      toast({
+        title: "Success!",
+        description: data.usedFallback 
+          ? "Custom style generated using fallback service" 
+          : "Custom resume style generated successfully",
+      })
+      
+      return true
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate custom style. Please try again.",
+        variant: "destructive",
+      })
+      return false
+    } finally {
+      setIsGeneratingCustomStyle(false)
+    }
+  }
+
+  const resetCustomStyle = () => {
+    if (generatedContent && generatedContent.customHtmlTemplate) {
+      const confirmed = window.confirm(
+        "Are you sure you want to reset to the default style? This will remove your custom styling."
+      )
+      
+      if (confirmed) {
+        const updatedContent = { ...generatedContent }
+        delete updatedContent.customHtmlTemplate
+        setGeneratedContent(updatedContent)
+        
+        toast({
+          title: "Style Reset",
+          description: "Resume has been reset to default style",
+        })
+      }
     }
   }
 
@@ -224,6 +319,8 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
                   </SelectContent>
                 </Select>
               </div>
+
+
               
               <Button onClick={generateContent} disabled={isLoading} className="w-full mt-4" size="lg">
                 {isLoading ? (
@@ -255,6 +352,9 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
                   portfolio: personalInfo.portfolio,
                 }}
                 companyName={generatedContent.companyName}
+                onGenerateCustomStyle={generateCustomStyle}
+                onResetCustomStyle={resetCustomStyle}
+                isGeneratingCustomStyle={isGeneratingCustomStyle}
               />
               
               {/* Resume Analyzer Section */}
