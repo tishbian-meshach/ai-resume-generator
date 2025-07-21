@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Download, Copy, FileText, Edit3, X, Palette, Loader2 } from "lucide-react"
 import { EditableResumeTemplate, EditableResumeTemplateRef } from "./editable-resume-template"
-import { CustomResumePreview } from "./custom-resume-preview"
 import { EditableCustomResumePreview, EditableCustomResumePreviewRef } from "./editable-custom-resume-preview"
 import { CustomStylePopup } from "./custom-style-popup"
 import { useToast } from "@/hooks/use-toast"
@@ -20,12 +19,44 @@ interface PersonalInfo {
   portfolio: string
 }
 
+interface StyleOption {
+  id: string
+  name: string
+  description: string
+  htmlTemplate: string
+  targetHeight: string
+  fontSizes: {
+    h1: string
+    h2: string
+    h3: string
+    body: string
+  }
+  spacing: {
+    sectionMargin: string
+    lineHeight: string
+    padding: string
+  }
+  layout: {
+    type: 'single-column' | 'two-column' | 'grid'
+    columns?: string
+    gap?: string
+  }
+}
+
+interface MultiStyleResponse {
+  options: StyleOption[]
+  defaultOption: string
+  usedFallback?: boolean
+}
+
 interface GeneratedContent {
   resume: string
   coverLetter: string
   companyName: string
   usedFallback: boolean
   customHtmlTemplate?: string
+  customStyleOptions?: MultiStyleResponse
+  selectedStyleOption?: string
 }
 
 interface ResultsDisplayProps {
@@ -35,6 +66,7 @@ interface ResultsDisplayProps {
   onGenerateCustomStyle: (styleInstructions: string, isSurpriseMe?: boolean) => Promise<boolean>
   onResetCustomStyle: () => void
   isGeneratingCustomStyle: boolean
+  onStyleOptionChange?: (optionId: string, htmlTemplate: string) => void
 }
 
 export function ResultsDisplay({ 
@@ -43,7 +75,8 @@ export function ResultsDisplay({
   companyName, 
   onGenerateCustomStyle, 
   onResetCustomStyle,
-  isGeneratingCustomStyle 
+  isGeneratingCustomStyle,
+  onStyleOptionChange
 }: ResultsDisplayProps) {
   const editableResumeRef = useRef<EditableResumeTemplateRef>(null)
   const editableCustomResumeRef = useRef<EditableCustomResumePreviewRef>(null)
@@ -93,7 +126,7 @@ export function ResultsDisplay({
         console.log("Using custom HTML template")
         
         // Replace placeholders in the custom template with edited data
-        htmlContent = generatedContent.customHtmlTemplate
+        let processedTemplate = generatedContent.customHtmlTemplate
           .replace(/\{\{FULL_NAME\}\}/g, editedPersonalInfo.fullName)
           .replace(/\{\{EMAIL\}\}/g, editedPersonalInfo.email)
           .replace(/\{\{PHONE\}\}/g, editedPersonalInfo.phone)
@@ -101,6 +134,86 @@ export function ResultsDisplay({
           .replace(/\{\{LINKEDIN\}\}/g, editedPersonalInfo.linkedIn)
           .replace(/\{\{PORTFOLIO\}\}/g, editedPersonalInfo.portfolio)
           .replace(/\{\{RESUME_CONTENT\}\}/g, editedResumeContent)
+
+        // Add PDF-specific CSS to remove browser margins and ensure proper printing
+        const pdfOptimizationCSS = `
+    /* PDF Print Optimization - Remove Browser Margins */
+    @media print {
+      @page {
+        margin: 0 !important;
+        padding: 0 !important;
+        size: A4 !important;
+      }
+      
+      html {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 210mm !important;
+        height: 297mm !important;
+      }
+      
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 210mm !important;
+        height: 297mm !important;
+        overflow: hidden !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+      
+      /* Ensure the resume container respects AI-generated margins */
+      .resume-container,
+      .resume-container-two-col {
+        width: 210mm !important;
+        height: 297mm !important;
+        max-width: 210mm !important;
+        max-height: 297mm !important;
+        overflow: hidden !important;
+        page-break-inside: avoid !important;
+        page-break-after: avoid !important;
+      }
+      
+      /* Remove any additional margins from main content areas */
+      .left-column,
+      .right-column,
+      .sidebar,
+      .main-content {
+        page-break-inside: avoid !important;
+      }
+      
+      /* Prevent content from being cut off */
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+    }
+    
+    /* Screen display optimization */
+    @media screen {
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: white;
+      }
+    }
+`
+
+        // Insert the PDF optimization CSS into the template
+        if (processedTemplate.includes('</style>')) {
+          // Add to existing style block
+          processedTemplate = processedTemplate.replace('</style>', pdfOptimizationCSS + '\n</style>')
+        } else if (processedTemplate.includes('</head>')) {
+          // Add new style block in head
+          processedTemplate = processedTemplate.replace('</head>', `<style>${pdfOptimizationCSS}</style>\n</head>`)
+        } else {
+          // Fallback: add style block after opening body tag
+          processedTemplate = processedTemplate.replace('<body>', `<body><style>${pdfOptimizationCSS}</style>`)
+        }
+
+        htmlContent = processedTemplate
       } else {
         console.log("Using default template")
         
@@ -215,9 +328,32 @@ export function ResultsDisplay({
                 }
                 
                 @media print {
+                  @page {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    size: A4 !important;
+                  }
+                  
+                  html {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                  }
+                  
                   body { 
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                  }
+                  
+                  .bg-white.p-4.max-w-4xl.mx-auto {
+                    max-width: none !important;
+                    margin: 0 !important;
+                    padding: 15mm !important;
+                    width: 210mm !important;
+                    height: 297mm !important;
+                    box-sizing: border-box !important;
                   }
                   
                   .page-break {
@@ -256,6 +392,34 @@ export function ResultsDisplay({
       // Wait for content to load then print
       printWindow.onload = () => {
         setTimeout(() => {
+          // Try to set print margins programmatically (browser support varies)
+          try {
+            if (printWindow.document.body) {
+              // Add a script to the print window to handle print settings
+              const script = printWindow.document.createElement('script')
+              script.textContent = `
+                // Attempt to configure print settings
+                window.addEventListener('beforeprint', function() {
+                  console.log('Print dialog opening - margins should be set to None/Minimum');
+                });
+                
+                // For Chrome/Edge - attempt to set print margins
+                if (window.chrome && window.chrome.webstore) {
+                  try {
+                    // This is a hint for the browser's print dialog
+                    document.body.style.margin = '0';
+                    document.documentElement.style.margin = '0';
+                  } catch (e) {
+                    console.log('Could not set programmatic margins');
+                  }
+                }
+              `
+              printWindow.document.head.appendChild(script)
+            }
+          } catch (e) {
+            console.log('Could not add print configuration script')
+          }
+          
           printWindow.print()
           printWindow.close()
         }, 250)
@@ -331,26 +495,37 @@ export function ResultsDisplay({
                   {isEditing ? "Exit Edit" : "Edit Resume"}
                 </Button>
                 {!isEditing && (
-                  <Button onClick={generatePDF} className="flex items-center gap-2">
-                    <Download className="h-4 w-4" />
-                    Download PDF
-                  </Button>
+                  <div className="relative group">
+                    <Button onClick={generatePDF} className="flex items-center gap-2">
+                      <Download className="h-4 w-4" />
+                      Download PDF
+                    </Button>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                      💡 Set margins to "None" in print dialog for best results
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
 
             <div className="border rounded-lg overflow-hidden bg-gray-50">
               {generatedContent.customHtmlTemplate ? (
-                // Show custom styled editable preview
-                <EditableCustomResumePreview
-                  ref={editableCustomResumeRef}
-                  htmlTemplate={generatedContent.customHtmlTemplate}
-                  personalInfo={editedPersonalInfo}
-                  resumeContent={editedResumeContent}
-                  isEditing={isEditing}
-                  onContentChange={(newContent) => setEditedResumeContent(newContent)}
-                  onPersonalInfoChange={(newPersonalInfo) => setEditedPersonalInfo(newPersonalInfo)}
-                />
+                // Show custom styled editable preview - Full A4 size
+                <div className="w-full">
+                  <EditableCustomResumePreview
+                    ref={editableCustomResumeRef}
+                    htmlTemplate={generatedContent.customHtmlTemplate}
+                    personalInfo={editedPersonalInfo}
+                    resumeContent={editedResumeContent}
+                    isEditing={isEditing}
+                    onContentChange={(newContent) => setEditedResumeContent(newContent)}
+                    onPersonalInfoChange={(newPersonalInfo) => setEditedPersonalInfo(newPersonalInfo)}
+                    styleOptions={generatedContent.customStyleOptions}
+                    selectedStyleOption={generatedContent.selectedStyleOption}
+                    onStyleOptionChange={onStyleOptionChange}
+                  />
+                </div>
               ) : (
                 // Show default editable template
                 <div className="max-h-96 overflow-y-auto" ref={resumeContentRef}>
@@ -389,7 +564,7 @@ export function ResultsDisplay({
                   <p>
                     {isEditing 
                       ? "Hover over any section to see edit buttons. Click to edit content directly in the formatted resume."
-                      : "Click \"Download PDF\" to open the print dialog. Choose \"Save as PDF\" as your destination. Click \"Edit Resume\" to make changes."
+                      : "Click \"Download PDF\" to open the print dialog. Choose \"Save as PDF\" as your destination and set margins to \"None\" or \"Minimum\" for best results. Click \"Edit Resume\" to make changes."
                     }
                   </p>
                 </div>

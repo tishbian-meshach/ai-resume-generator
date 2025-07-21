@@ -26,12 +26,44 @@ interface PersonalInfo {
   certifications: string
 }
 
+interface StyleOption {
+  id: string
+  name: string
+  description: string
+  htmlTemplate: string
+  targetHeight: string
+  fontSizes: {
+    h1: string
+    h2: string
+    h3: string
+    body: string
+  }
+  spacing: {
+    sectionMargin: string
+    lineHeight: string
+    padding: string
+  }
+  layout: {
+    type: 'single-column' | 'two-column' | 'grid'
+    columns?: string
+    gap?: string
+  }
+}
+
+interface MultiStyleResponse {
+  options: StyleOption[]
+  defaultOption: string
+  usedFallback?: boolean
+}
+
 interface GeneratedContent {
   resume: string
   coverLetter: string
   companyName: string
   usedFallback: boolean
   customHtmlTemplate?: string
+  customStyleOptions?: MultiStyleResponse
+  selectedStyleOption?: string
 }
 
 export default function ResumeGenerator() {
@@ -146,10 +178,22 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
 
       const data = await response.json()
       
-      setGeneratedContent({
-        ...generatedContent,
-        customHtmlTemplate: data.htmlTemplate
-      })
+      // Handle both old single template response and new multi-option response
+      if (data.options && Array.isArray(data.options)) {
+        // New multi-option response
+        setGeneratedContent({
+          ...generatedContent,
+          customStyleOptions: data,
+          selectedStyleOption: data.defaultOption,
+          customHtmlTemplate: data.options.find((opt: StyleOption) => opt.id === data.defaultOption)?.htmlTemplate
+        })
+      } else {
+        // Legacy single template response
+        setGeneratedContent({
+          ...generatedContent,
+          customHtmlTemplate: data.htmlTemplate
+        })
+      }
 
       toast({
         title: "Success!",
@@ -180,6 +224,8 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
       if (confirmed) {
         const updatedContent = { ...generatedContent }
         delete updatedContent.customHtmlTemplate
+        delete updatedContent.customStyleOptions
+        delete updatedContent.selectedStyleOption
         setGeneratedContent(updatedContent)
         
         toast({
@@ -188,6 +234,19 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
         })
       }
     }
+  }
+
+  const handleStyleOptionChange = (optionId: string, htmlTemplate: string) => {
+    setGeneratedContent({
+      ...generatedContent,
+      selectedStyleOption: optionId,
+      customHtmlTemplate: htmlTemplate
+    })
+    
+    toast({
+      title: "Style Updated",
+      description: `Switched to ${optionId} layout`,
+    })
   }
 
   const generateContent = async () => {
@@ -355,6 +414,7 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
                 onGenerateCustomStyle={generateCustomStyle}
                 onResetCustomStyle={resetCustomStyle}
                 isGeneratingCustomStyle={isGeneratingCustomStyle}
+                onStyleOptionChange={handleStyleOptionChange}
               />
               
               {/* Resume Analyzer Section */}

@@ -11,6 +11,36 @@ export interface EditableCustomResumePreviewRef {
   getHTMLContent: () => string | null
 }
 
+interface StyleOption {
+  id: string
+  name: string
+  description: string
+  htmlTemplate: string
+  targetHeight: string
+  fontSizes: {
+    h1: string
+    h2: string
+    h3: string
+    body: string
+  }
+  spacing: {
+    sectionMargin: string
+    lineHeight: string
+    padding: string
+  }
+  layout: {
+    type: 'single-column' | 'two-column' | 'grid'
+    columns?: string
+    gap?: string
+  }
+}
+
+interface MultiStyleResponse {
+  options: StyleOption[]
+  defaultOption: string
+  usedFallback?: boolean
+}
+
 interface EditableCustomResumePreviewProps {
   htmlTemplate: string
   personalInfo: {
@@ -25,16 +55,22 @@ interface EditableCustomResumePreviewProps {
   isEditing: boolean
   onContentChange?: (content: string) => void
   onPersonalInfoChange?: (personalInfo: any) => void
+  styleOptions?: MultiStyleResponse
+  selectedStyleOption?: string
+  onStyleOptionChange?: (optionId: string, htmlTemplate: string) => void
 }
 
 const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, EditableCustomResumePreviewProps>(
-  ({ htmlTemplate, personalInfo, resumeContent, isEditing, onContentChange, onPersonalInfoChange }, ref) => {
+  ({ htmlTemplate, personalInfo, resumeContent, isEditing, onContentChange, onPersonalInfoChange, styleOptions, selectedStyleOption, onStyleOptionChange }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const [editablePersonalInfo, setEditablePersonalInfo] = useState(personalInfo)
     const [isEditingPersonal, setIsEditingPersonal] = useState(false)
     const [sections, setSections] = useState<{ [key: string]: string[] }>({})
     const [editingSections, setEditingSections] = useState<{ [key: string]: boolean }>({})
+    const [currentStyleOption, setCurrentStyleOption] = useState<string>(selectedStyleOption || 'standard')
+    const [autoSelectedOption, setAutoSelectedOption] = useState<string | null>(null)
     const isUserEditingRef = useRef(false)
+    const scrollHeightCheckRef = useRef<boolean>(false)
 
     // Parse the AI-generated resume content into structured sections
     const parseResumeContent = (content: string) => {
@@ -94,37 +130,207 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
       setEditablePersonalInfo(personalInfo)
     }, [personalInfo])
 
+    // Function to detect scroll height and select appropriate style option
+    const detectAndSelectOptimalStyle = (iframeDoc: Document) => {
+      if (!styleOptions || !styleOptions.options || scrollHeightCheckRef.current) return
+
+      const body = iframeDoc.body
+      if (!body) return
+
+      // Get the actual content height
+      const scrollHeight = body.scrollHeight
+      const A4_HEIGHT_PX = 984 // A4 height in pixels at 96 DPI (260mm)
+      
+      console.log('Content scroll height:', scrollHeight, 'A4 height:', A4_HEIGHT_PX)
+
+      let optimalOption: StyleOption | null = null
+
+      // Determine which style option to use based on content height
+      if (scrollHeight <= A4_HEIGHT_PX * 0.7) {
+        // Content is short, use spacious layout
+        optimalOption = styleOptions.options.find(opt => opt.id === 'spacious') || null
+      } else if (scrollHeight <= A4_HEIGHT_PX * 1.1) {
+        // Content fits well in standard layout
+        optimalOption = styleOptions.options.find(opt => opt.id === 'standard') || null
+      } else {
+        // Content is long, use compact layout
+        optimalOption = styleOptions.options.find(opt => opt.id === 'compact') || null
+      }
+
+      if (optimalOption && optimalOption.id !== currentStyleOption) {
+        console.log(`Auto-selecting ${optimalOption.id} style due to content height: ${scrollHeight}px`)
+        setCurrentStyleOption(optimalOption.id)
+        setAutoSelectedOption(optimalOption.id)
+        
+        // Notify parent component about the style change
+        if (onStyleOptionChange) {
+          onStyleOptionChange(optimalOption.id, optimalOption.htmlTemplate)
+        }
+        
+        // Mark that we've done the scroll height check to prevent infinite loops
+        scrollHeightCheckRef.current = true
+        
+        // Re-render with the new template after a short delay
+        setTimeout(() => {
+          if (iframeRef.current) {
+            loadIframeContent(optimalOption!.htmlTemplate)
+          }
+        }, 100)
+      } else {
+        scrollHeightCheckRef.current = true
+      }
+    }
+
+    // Function to load content into iframe
+    const loadIframeContent = (template: string) => {
+      if (!iframeRef.current) return
+
+      // Replace placeholders in the template
+      let processedHTML = template
+        .replace(/\{\{FULL_NAME\}\}/g, editablePersonalInfo.fullName)
+        .replace(/\{\{EMAIL\}\}/g, editablePersonalInfo.email)
+        .replace(/\{\{PHONE\}\}/g, editablePersonalInfo.phone)
+        .replace(/\{\{LOCATION\}\}/g, editablePersonalInfo.location)
+        .replace(/\{\{LINKEDIN\}\}/g, editablePersonalInfo.linkedIn)
+        .replace(/\{\{PORTFOLIO\}\}/g, editablePersonalInfo.portfolio)
+        .replace(/\{\{RESUME_CONTENT\}\}/g, resumeContent)
+
+      // Ensure external resources can load in iframe by adding proper meta tags and PDF preview CSS
+      if (!processedHTML.includes('<meta http-equiv="Content-Security-Policy"')) {
+        const headCloseIndex = processedHTML.indexOf('</head>')
+        if (headCloseIndex !== -1) {
+          const metaTag = `
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: http:; font-src 'self' 'unsafe-inline' data: https: http:; style-src 'self' 'unsafe-inline' https: http:;">
+    <style>
+      /* Preview iframe styling to match PDF output */
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+      }
+      body {
+        /* Will be set by JavaScript scaling */
+        transform-origin: top left !important;
+      }
+      
+      /* PDF Preview Mode - Show how it will look when printed */
+      @media screen {
+        /* Ensure the preview matches PDF margins */
+        .resume-container,
+        .resume-container-two-col {
+          width: 210mm;
+          height: 297mm;
+          max-width: 210mm;
+          max-height: 297mm;
+          overflow: hidden;
+          background: white;
+        }
+      }
+      
+      /* Actual PDF print styles */
+      @media print {
+        @page {
+          margin: 0 !important;
+          padding: 0 !important;
+          size: A4 !important;
+        }
+        
+        html {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 210mm !important;
+          height: 297mm !important;
+        }
+        
+        body {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 210mm !important;
+          height: 297mm !important;
+          overflow: hidden !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        
+        .resume-container,
+        .resume-container-two-col {
+          width: 210mm !important;
+          height: 297mm !important;
+          max-width: 210mm !important;
+          max-height: 297mm !important;
+          overflow: hidden !important;
+          page-break-inside: avoid !important;
+          page-break-after: avoid !important;
+        }
+        
+        .left-column,
+        .right-column,
+        .sidebar,
+        .main-content {
+          page-break-inside: avoid !important;
+        }
+        
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+      }
+    </style>
+`
+          processedHTML = processedHTML.slice(0, headCloseIndex) + metaTag + processedHTML.slice(headCloseIndex)
+        }
+      }
+
+      // Write the processed HTML to the iframe
+      const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
+      if (iframeDoc) {
+        iframeDoc.open()
+        iframeDoc.write(processedHTML)
+        iframeDoc.close()
+        
+        // Scale the content to fit the iframe after loading
+        setTimeout(() => {
+          const iframe = iframeRef.current
+          if (iframe && iframe.contentWindow) {
+            const iframeWidth = iframe.clientWidth
+            const iframeHeight = iframe.clientHeight
+            
+            // A4 dimensions in pixels (assuming 96 DPI)
+            const a4WidthPx = 794  // 210mm at 96 DPI
+            const a4HeightPx = 984 // 260mm at 96 DPI
+            
+            const scaleX = iframeWidth / a4WidthPx
+            const scaleY = iframeHeight / a4HeightPx
+            const scale = Math.min(scaleX, scaleY)
+            
+            const body = iframe.contentDocument?.body
+            if (body) {
+              body.style.transform = `scale(${scale})`
+              body.style.transformOrigin = 'top left'
+              body.style.width = `${a4WidthPx}px`
+              body.style.height = `${a4HeightPx}px`
+            }
+
+            // Detect optimal style after scaling
+            if (iframe.contentDocument) {
+              detectAndSelectOptimalStyle(iframe.contentDocument)
+            }
+          }
+        }, 100)
+      }
+    }
+
+    // Reset scroll height check when template changes
+    useEffect(() => {
+      scrollHeightCheckRef.current = false
+    }, [htmlTemplate])
+
     // Update iframe content when template or data changes
     useEffect(() => {
       if (iframeRef.current && htmlTemplate && !isEditing) {
-        // Replace placeholders in the template
-        let processedHTML = htmlTemplate
-          .replace(/\{\{FULL_NAME\}\}/g, editablePersonalInfo.fullName)
-          .replace(/\{\{EMAIL\}\}/g, editablePersonalInfo.email)
-          .replace(/\{\{PHONE\}\}/g, editablePersonalInfo.phone)
-          .replace(/\{\{LOCATION\}\}/g, editablePersonalInfo.location)
-          .replace(/\{\{LINKEDIN\}\}/g, editablePersonalInfo.linkedIn)
-          .replace(/\{\{PORTFOLIO\}\}/g, editablePersonalInfo.portfolio)
-          .replace(/\{\{RESUME_CONTENT\}\}/g, resumeContent)
-
-        // Ensure external resources can load in iframe by adding proper meta tags
-        if (!processedHTML.includes('<meta http-equiv="Content-Security-Policy"')) {
-          const headCloseIndex = processedHTML.indexOf('</head>')
-          if (headCloseIndex !== -1) {
-            const metaTag = `
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: http:; font-src 'self' 'unsafe-inline' data: https: http:; style-src 'self' 'unsafe-inline' https: http:;">
-`
-            processedHTML = processedHTML.slice(0, headCloseIndex) + metaTag + processedHTML.slice(headCloseIndex)
-          }
-        }
-
-        // Write the processed HTML to the iframe
-        const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
-        if (iframeDoc) {
-          iframeDoc.open()
-          iframeDoc.write(processedHTML)
-          iframeDoc.close()
-        }
+        loadIframeContent(htmlTemplate)
       }
     }, [htmlTemplate, editablePersonalInfo, resumeContent, isEditing])
 
@@ -380,16 +586,71 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
       )
     }
 
+    // Manual style option selection handler
+    const handleStyleOptionChange = (optionId: string) => {
+      const selectedOption = styleOptions?.options.find(opt => opt.id === optionId)
+      if (selectedOption) {
+        setCurrentStyleOption(optionId)
+        setAutoSelectedOption(null) // Clear auto-selection when user manually selects
+        scrollHeightCheckRef.current = true // Prevent auto-selection after manual selection
+        
+        if (onStyleOptionChange) {
+          onStyleOptionChange(optionId, selectedOption.htmlTemplate)
+        }
+        
+        // Load the new template
+        loadIframeContent(selectedOption.htmlTemplate)
+      }
+    }
+
     // Show iframe preview when not editing
     return (
-      <div className="w-full h-96 border rounded-lg overflow-hidden bg-white">
-        <iframe
-          ref={iframeRef}
-          className="w-full h-full"
-          title="Custom Resume Preview"
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-          style={{ border: 'none' }}
-        />
+      <div className="w-full border rounded-lg overflow-hidden bg-white">
+        {/* Style Options Selector */}
+        {styleOptions && styleOptions.options.length > 1 && (
+          <div className="p-3 border-b bg-gray-50">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-700">Layout Options</h3>
+              {autoSelectedOption && (
+                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  Auto-selected: {styleOptions.options.find(opt => opt.id === autoSelectedOption)?.name}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {styleOptions.options.map((option) => (
+                <Button
+                  key={option.id}
+                  size="sm"
+                  variant={currentStyleOption === option.id ? "default" : "outline"}
+                  onClick={() => handleStyleOptionChange(option.id)}
+                  className="text-xs"
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="font-medium">{option.name}</span>
+                    <span className="text-xs opacity-75">{option.description}</span>
+                  </div>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Resume Preview */}
+        <div className="w-full" style={{ aspectRatio: '210/260' }}>
+          <iframe
+            ref={iframeRef}
+            className="w-full h-full"
+            title="Custom Resume Preview"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+            style={{ 
+              border: 'none',
+              width: '100%',
+              height: '100%',
+              display: 'block'
+            }}
+          />
+        </div>
       </div>
     )
   }
