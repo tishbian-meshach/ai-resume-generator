@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Download, Copy, FileText, Edit3, X, Palette, Loader2 } from "lucide-react"
 import { EditableResumeTemplate, EditableResumeTemplateRef } from "./editable-resume-template"
 import { CustomResumePreview } from "./custom-resume-preview"
+import { EditableCustomResumePreview, EditableCustomResumePreviewRef } from "./editable-custom-resume-preview"
 import { CustomStylePopup } from "./custom-style-popup"
 import { useToast } from "@/hooks/use-toast"
 
@@ -45,6 +46,7 @@ export function ResultsDisplay({
   isGeneratingCustomStyle 
 }: ResultsDisplayProps) {
   const editableResumeRef = useRef<EditableResumeTemplateRef>(null)
+  const editableCustomResumeRef = useRef<EditableCustomResumePreviewRef>(null)
   const resumeContentRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -79,10 +81,10 @@ export function ResultsDisplay({
         return
       }
 
-      // Create filename with company name
+      // Create filename with company name using edited personal info
       const fileName = companyName 
-        ? `${personalInfo.fullName.replace(/\s+/g, '_')}_Resume_${companyName.replace(/\s+/g, '_')}`
-        : `${personalInfo.fullName.replace(/\s+/g, '_')}_Resume`
+        ? `${editedPersonalInfo.fullName.replace(/\s+/g, '_')}_Resume_${companyName.replace(/\s+/g, '_')}`
+        : `${editedPersonalInfo.fullName.replace(/\s+/g, '_')}_Resume`
 
       let htmlContent = ""
 
@@ -90,14 +92,14 @@ export function ResultsDisplay({
       if (generatedContent.customHtmlTemplate) {
         console.log("Using custom HTML template")
         
-        // Replace placeholders in the custom template
+        // Replace placeholders in the custom template with edited data
         htmlContent = generatedContent.customHtmlTemplate
-          .replace(/\{\{FULL_NAME\}\}/g, personalInfo.fullName)
-          .replace(/\{\{EMAIL\}\}/g, personalInfo.email)
-          .replace(/\{\{PHONE\}\}/g, personalInfo.phone)
-          .replace(/\{\{LOCATION\}\}/g, personalInfo.location)
-          .replace(/\{\{LINKEDIN\}\}/g, personalInfo.linkedIn)
-          .replace(/\{\{PORTFOLIO\}\}/g, personalInfo.portfolio)
+          .replace(/\{\{FULL_NAME\}\}/g, editedPersonalInfo.fullName)
+          .replace(/\{\{EMAIL\}\}/g, editedPersonalInfo.email)
+          .replace(/\{\{PHONE\}\}/g, editedPersonalInfo.phone)
+          .replace(/\{\{LOCATION\}\}/g, editedPersonalInfo.location)
+          .replace(/\{\{LINKEDIN\}\}/g, editedPersonalInfo.linkedIn)
+          .replace(/\{\{PORTFOLIO\}\}/g, editedPersonalInfo.portfolio)
           .replace(/\{\{RESUME_CONTENT\}\}/g, editedResumeContent)
       } else {
         console.log("Using default template")
@@ -267,6 +269,7 @@ export function ResultsDisplay({
     if (isEditing) {
       // Close all editing windows when exiting edit mode
       editableResumeRef.current?.closeAllEditing()
+      editableCustomResumeRef.current?.closeAllEditing()
     }
     setIsEditing(!isEditing)
   }
@@ -323,7 +326,6 @@ export function ResultsDisplay({
                   onClick={handleEditToggle} 
                   variant={isEditing ? "secondary" : "outline"}
                   className={`flex items-center gap-2 ${isEditing ? "bg-gray-500 hover:bg-gray-600 text-white" : ""}`}
-                  disabled={!!generatedContent.customHtmlTemplate}
                 >
                   {isEditing ? <X className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
                   {isEditing ? "Exit Edit" : "Edit Resume"}
@@ -339,11 +341,15 @@ export function ResultsDisplay({
 
             <div className="border rounded-lg overflow-hidden bg-gray-50">
               {generatedContent.customHtmlTemplate ? (
-                // Show custom styled preview
-                <CustomResumePreview
+                // Show custom styled editable preview
+                <EditableCustomResumePreview
+                  ref={editableCustomResumeRef}
                   htmlTemplate={generatedContent.customHtmlTemplate}
                   personalInfo={editedPersonalInfo}
                   resumeContent={editedResumeContent}
+                  isEditing={isEditing}
+                  onContentChange={(newContent) => setEditedResumeContent(newContent)}
+                  onPersonalInfoChange={(newPersonalInfo) => setEditedPersonalInfo(newPersonalInfo)}
                 />
               ) : (
                 // Show default editable template

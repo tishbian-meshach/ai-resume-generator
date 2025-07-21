@@ -41,6 +41,187 @@ const getOpenRouterModel = () => {
   return "google/gemini-2.0-flash-exp:free"
 }
 
+// Function to ensure all required placeholders are present in the template
+function ensureAllPlaceholders(htmlTemplate: string, missingPlaceholders: string[], resumeContent: string, personalInfo: any): string {
+  console.log("Adding missing placeholders manually:", missingPlaceholders)
+  
+  // Create a basic template structure if the template is severely malformed
+  if (missingPlaceholders.length >= 6 || htmlTemplate.length < 500) {
+    console.log("Template appears to be severely malformed, creating basic structure")
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{FULL_NAME}} - Resume</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 0.5in;
+            background: white;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #333;
+            padding-bottom: 1rem;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2rem;
+            color: #2c3e50;
+        }
+        .contact-info {
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+        .contact-info a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .resume-content {
+            margin-top: 1.5rem;
+        }
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{FULL_NAME}}</h1>
+        <div class="contact-info">
+            <span>{{EMAIL}}</span> | 
+            <span>{{PHONE}}</span> | 
+            <span>{{LOCATION}}</span>
+        </div>
+        <div class="contact-info">
+            <a href="{{LINKEDIN}}">LinkedIn</a> | 
+            <a href="{{PORTFOLIO}}">Portfolio</a>
+        </div>
+    </div>
+    
+    <div class="resume-content">
+        {{RESUME_CONTENT}}
+    </div>
+</body>
+</html>`
+  }
+  
+  // Try to add missing placeholders to existing template
+  let updatedTemplate = htmlTemplate
+  
+  // Add missing placeholders in appropriate locations
+  if (missingPlaceholders.includes('{{FULL_NAME}}')) {
+    // Try to find a title or h1 tag to replace
+    if (updatedTemplate.includes('<h1>') && !updatedTemplate.includes('{{FULL_NAME}}')) {
+      updatedTemplate = updatedTemplate.replace(/<h1[^>]*>([^<]*)<\/h1>/, '<h1>{{FULL_NAME}}</h1>')
+    } else if (updatedTemplate.includes('<title>')) {
+      updatedTemplate = updatedTemplate.replace(/<title>([^<]*)<\/title>/, '<title>{{FULL_NAME}} - Resume</title>')
+      // Also add h1 in body if not present
+      if (!updatedTemplate.includes('<h1>')) {
+        updatedTemplate = updatedTemplate.replace('<body>', '<body>\n    <h1>{{FULL_NAME}}</h1>')
+      }
+    }
+  }
+  
+  // Add contact info placeholders
+  const contactPlaceholders = ['{{EMAIL}}', '{{PHONE}}', '{{LOCATION}}', '{{LINKEDIN}}', '{{PORTFOLIO}}']
+  const missingContactInfo = contactPlaceholders.filter(p => missingPlaceholders.includes(p))
+  
+  if (missingContactInfo.length > 0) {
+    const contactSection = `
+    <div class="contact-info">
+        <span>{{EMAIL}}</span> | 
+        <span>{{PHONE}}</span> | 
+        <span>{{LOCATION}}</span>
+    </div>
+    <div class="contact-links">
+        <a href="{{LINKEDIN}}">LinkedIn</a> | 
+        <a href="{{PORTFOLIO}}">Portfolio</a>
+    </div>`
+    
+    // Try to add after h1 or at the beginning of body
+    if (updatedTemplate.includes('<h1>')) {
+      updatedTemplate = updatedTemplate.replace('</h1>', '</h1>' + contactSection)
+    } else {
+      updatedTemplate = updatedTemplate.replace('<body>', '<body>' + contactSection)
+    }
+  }
+  
+  // Add resume content placeholder
+  if (missingPlaceholders.includes('{{RESUME_CONTENT}}')) {
+    // Add at the end of body before closing tag
+    updatedTemplate = updatedTemplate.replace('</body>', '    <div class="resume-content">{{RESUME_CONTENT}}</div>\n</body>')
+  }
+  
+  return updatedTemplate
+}
+
+// Function to validate the generated template
+function validateTemplate(htmlTemplate: string, expectResumeContentPlaceholder: boolean = true): { isValid: boolean; errors: string[] } {
+  const errors: string[] = []
+  
+  // Check for required HTML structure
+  if (!htmlTemplate.toLowerCase().includes('<!doctype html>')) {
+    errors.push('Missing DOCTYPE declaration')
+  }
+  
+  if (!htmlTemplate.toLowerCase().includes('<html')) {
+    errors.push('Missing HTML tag')
+  }
+  
+  if (!htmlTemplate.toLowerCase().includes('<head>')) {
+    errors.push('Missing HEAD section')
+  }
+  
+  if (!htmlTemplate.toLowerCase().includes('<body>')) {
+    errors.push('Missing BODY section')
+  }
+  
+  if (!htmlTemplate.toLowerCase().includes('</body>')) {
+    errors.push('Missing closing BODY tag')
+  }
+  
+  if (!htmlTemplate.toLowerCase().includes('</html>')) {
+    errors.push('Missing closing HTML tag')
+  }
+  
+  // Check for required placeholders (conditionally include RESUME_CONTENT)
+  const requiredPlaceholders = ['{{FULL_NAME}}', '{{EMAIL}}', '{{PHONE}}', '{{LOCATION}}', '{{LINKEDIN}}', '{{PORTFOLIO}}']
+  if (expectResumeContentPlaceholder) {
+    requiredPlaceholders.push('{{RESUME_CONTENT}}')
+  }
+  
+  const missingPlaceholders = requiredPlaceholders.filter(placeholder => !htmlTemplate.includes(placeholder))
+  
+  if (missingPlaceholders.length > 0) {
+    errors.push(`Missing required placeholders: ${missingPlaceholders.join(', ')}`)
+  }
+  
+  // Check for basic CSS styling
+  if (!htmlTemplate.toLowerCase().includes('<style>') && !htmlTemplate.toLowerCase().includes('style=')) {
+    errors.push('No CSS styling found')
+  }
+  
+  // Check minimum template length (should be substantial)
+  if (htmlTemplate.length < 1000) {
+    errors.push('Template appears to be too short or incomplete')
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors: errors
+  }
+}
+
 // Function to optimize layout spacing and prevent white space issues
 function optimizeLayoutSpacing(htmlTemplate: string): string {
   // Add CSS optimizations for better space utilization
@@ -282,9 +463,9 @@ export async function POST(req: NextRequest) {
       console.log("Surprise Me style selected:", finalStyleInstructions)
     }
 
-    // Enhanced Custom Style Generation Prompt
+    // Enhanced Custom Style Generation Prompt with stricter requirements
     const customStylePrompt = `
-You are an expert web developer and designer specializing in creating beautiful, professional resume templates with optimal space utilization. Generate a complete HTML structure with embedded CSS styling for a resume based on the style instructions.
+You are an expert web developer and designer specializing in creating beautiful, professional resume templates. You MUST generate a COMPLETE HTML document with embedded CSS styling for a resume based on the style instructions.
 
 RESUME CONTENT TO STYLE:
 ${resumeContent}
@@ -302,7 +483,7 @@ ${finalStyleInstructions}
 
 ${isSurpriseMe ? 'MODE: SURPRISE ME - Be creative and unique while maintaining professionalism!' : 'MODE: CUSTOM INSTRUCTIONS - Follow the user\'s specific requirements.'}
 
-CRITICAL REQUIREMENTS - MUST FOLLOW:
+ABSOLUTE REQUIREMENTS - FAILURE TO FOLLOW WILL RESULT IN REJECTION:
 
 0. COMPLETE CONTENT GENERATION:
    - Generate the COMPLETE HTML document from start to finish
@@ -345,14 +526,19 @@ CRITICAL REQUIREMENTS - MUST FOLLOW:
    - All CSS styles embedded in a <style> tag in the head
    - Professional, print-friendly layout with optimal space usage
 
-6. DYNAMIC CONTENT INTEGRATION: Use these EXACT placeholder variables in your HTML:
-   - {{FULL_NAME}} - for the person's name
-   - {{EMAIL}} - for email address
-   - {{PHONE}} - for phone number
-   - {{LOCATION}} - for location
-   - {{LINKEDIN}} - for LinkedIn URL
-   - {{PORTFOLIO}} - for portfolio URL
-   - {{RESUME_CONTENT}} - for the main resume content (preserve all formatting, sections, and structure)
+6. MANDATORY PLACEHOLDER INTEGRATION: You MUST include these EXACT placeholder variables in your HTML:
+   - {{FULL_NAME}} - REQUIRED: for the person's name (use in <h1> or title)
+   - {{EMAIL}} - REQUIRED: for email address (use in contact section)
+   - {{PHONE}} - REQUIRED: for phone number (use in contact section)
+   - {{LOCATION}} - REQUIRED: for location (use in contact section)
+   - {{LINKEDIN}} - REQUIRED: for LinkedIn URL (use as clickable link)
+   - {{PORTFOLIO}} - REQUIRED: for portfolio URL (use as clickable link)
+   
+   CRITICAL CONTENT INSTRUCTION: 
+   - DO NOT include the {{RESUME_CONTENT}} placeholder in your template
+   - Instead, directly incorporate and style the actual resume content provided above
+   - Transform the raw resume content into beautifully styled HTML sections
+   - The system will handle content placement automatically for optimal styling
 
 7. ENHANCED STYLING REQUIREMENTS:
    - Interpret the user's style instructions while prioritizing space optimization
@@ -362,10 +548,11 @@ CRITICAL REQUIREMENTS - MUST FOLLOW:
    - Make it visually appealing while maintaining readability and space efficiency
    - Ensure proper spacing and layout for PDF generation without waste
 
-8. CONTENT PRESERVATION:
-   - Do NOT modify the actual resume content structure or text
-   - Preserve all sections, bullet points, and formatting from the original content
-   - Only enhance the visual presentation through CSS styling
+8. CONTENT INTEGRATION AND STYLING:
+   - Transform the provided resume content into beautifully styled HTML sections
+   - Preserve all sections, bullet points, and information from the original content
+   - Convert plain text sections into proper HTML structure (headings, lists, paragraphs)
+   - Enhance the visual presentation through CSS styling while keeping all content
    - Keep all professional experience, skills, education, etc. exactly as provided
    - Organize content intelligently to minimize white space
 
@@ -461,7 +648,8 @@ EXAMPLE OPTIMIZED STRUCTURE:
         </header>
         
         <main>
-            {{RESUME_CONTENT}}
+            <!-- Resume content will be styled and integrated directly here -->
+            <!-- Do not use {{RESUME_CONTENT}} placeholder -->
         </main>
     </div>
 </body>
@@ -477,18 +665,29 @@ CRITICAL SPACE OPTIMIZATION RULES:
 6. Test that the layout works well for both screen and print
 7. Prioritize readability and professional appearance over complex layouts
 
-CRITICAL FINAL REQUIREMENTS:
+CRITICAL FINAL REQUIREMENTS - MANDATORY COMPLIANCE:
 - Return ONLY the complete HTML code, no explanations or markdown formatting
+- MUST include these 6 required placeholders: {{FULL_NAME}}, {{EMAIL}}, {{PHONE}}, {{LOCATION}}, {{LINKEDIN}}, {{PORTFOLIO}}
+- DO NOT include {{RESUME_CONTENT}} placeholder - integrate the content directly into styled HTML
 - Ensure the HTML is valid and well-structured with proper opening and closing tags
 - The design should reflect the style instructions while prioritizing space optimization
-- All placeholder variables must be included exactly as specified
 - Focus on creating a visually stunning yet space-efficient professional resume template
 - AVOID layouts that create excessive white space or unbalanced columns
-- MUST generate the complete document - do not stop in the middle
+- MUST generate the complete document - do not stop in the middle or truncate
 - Include proper DOCTYPE, html, head, and body structure
 - End with proper closing </body> and </html> tags
+- Template must be fully functional with all content beautifully styled
 
-Generate the COMPLETE HTML template now with optimal space utilization (ensure you include the full document from DOCTYPE to closing HTML tag):
+VALIDATION CHECKLIST - VERIFY YOUR OUTPUT INCLUDES:
+✓ DOCTYPE html declaration
+✓ Complete <html>, <head>, and <body> structure
+✓ 6 required placeholders exactly as specified (NOT including {{RESUME_CONTENT}})
+✓ Resume content directly integrated and styled in HTML
+✓ Embedded CSS styles in <style> tag
+✓ Professional styling based on instructions
+✓ Proper closing </body> and </html> tags
+
+Generate the COMPLETE HTML template now (from DOCTYPE to closing HTML tag):
 `
 
     // Generate custom styled resume
@@ -516,19 +715,129 @@ Generate the COMPLETE HTML template now with optimal space utilization (ensure y
       htmlTemplate += '\n</html>'
     }
 
-    // Validate that all required placeholders are present
-    const requiredPlaceholders = ['{{FULL_NAME}}', '{{EMAIL}}', '{{PHONE}}', '{{LOCATION}}', '{{LINKEDIN}}', '{{PORTFOLIO}}', '{{RESUME_CONTENT}}']
+    // Validate that all required placeholders are present (excluding RESUME_CONTENT which should NOT be included)
+    const requiredPlaceholders = ['{{FULL_NAME}}', '{{EMAIL}}', '{{PHONE}}', '{{LOCATION}}', '{{LINKEDIN}}', '{{PORTFOLIO}}']
     const missingPlaceholders = requiredPlaceholders.filter(placeholder => !htmlTemplate.includes(placeholder))
     
-    if (missingPlaceholders.length > 0) {
-      console.warn("Missing placeholders:", missingPlaceholders)
-      // Could add fallback logic here if needed
+    // Check if RESUME_CONTENT placeholder is present (it should NOT be)
+    const hasResumeContentPlaceholder = htmlTemplate.includes('{{RESUME_CONTENT}}')
+    
+    if (missingPlaceholders.length > 0 || hasResumeContentPlaceholder) {
+      if (missingPlaceholders.length > 0) {
+        console.warn("Missing placeholders detected:", missingPlaceholders)
+      }
+      if (hasResumeContentPlaceholder) {
+        console.warn("Template incorrectly includes {{RESUME_CONTENT}} placeholder - this should be integrated directly")
+      }
+      console.log("Attempting to regenerate with stricter requirements...")
+      
+      // Create a fallback template with all required placeholders
+      const fallbackPrompt = `
+CRITICAL: The previous response was missing required placeholders. Generate a COMPLETE HTML resume template that MUST include these exact placeholders:
+
+REQUIRED PLACEHOLDERS (MUST BE INCLUDED):
+- {{FULL_NAME}} - for the person's name
+- {{EMAIL}} - for email address  
+- {{PHONE}} - for phone number
+- {{LOCATION}} - for location
+- {{LINKEDIN}} - for LinkedIn URL
+- {{PORTFOLIO}} - for portfolio URL
+
+CRITICAL CONTENT INSTRUCTION:
+- DO NOT include {{RESUME_CONTENT}} placeholder
+- Instead, directly integrate and style the resume content provided below
+
+RESUME CONTENT TO STYLE:
+${resumeContent}
+
+STYLE INSTRUCTIONS:
+${finalStyleInstructions}
+
+Generate a COMPLETE HTML document with embedded CSS that includes:
+1. DOCTYPE html declaration
+2. Complete HTML structure with head and body
+3. The 6 required placeholders exactly as specified above
+4. Resume content directly integrated and beautifully styled
+5. Professional styling based on the instructions
+6. Proper closing </body> and </html> tags
+
+The template MUST be complete and functional. Do not truncate or stop in the middle.
+
+Return ONLY the HTML code, no explanations:
+`
+
+      try {
+        const fallbackResponse = await generateWithGemini(fallbackPrompt, selectedModel)
+        if (fallbackResponse.usedFallback) usedFallback = true
+        
+        let fallbackTemplate = fallbackResponse.result.trim()
+        fallbackTemplate = fallbackTemplate.replace(/```html\n?/g, '').replace(/```\n?/g, '')
+        
+        // Ensure proper structure
+        if (!fallbackTemplate.toLowerCase().includes('<!doctype html>')) {
+          fallbackTemplate = '<!DOCTYPE html>\n' + fallbackTemplate
+        }
+        if (!fallbackTemplate.toLowerCase().includes('</html>')) {
+          if (!fallbackTemplate.toLowerCase().includes('</body>')) {
+            fallbackTemplate += '\n</body>'
+          }
+          fallbackTemplate += '\n</html>'
+        }
+        
+        // Check if fallback has all placeholders and doesn't have RESUME_CONTENT
+        const stillMissingPlaceholders = requiredPlaceholders.filter(placeholder => !fallbackTemplate.includes(placeholder))
+        const fallbackHasResumeContent = fallbackTemplate.includes('{{RESUME_CONTENT}}')
+        
+        if (stillMissingPlaceholders.length === 0 && !fallbackHasResumeContent) {
+          console.log("Fallback template generated successfully with correct placeholders")
+          htmlTemplate = fallbackTemplate
+        } else {
+          if (stillMissingPlaceholders.length > 0) {
+            console.warn("Fallback template still missing placeholders:", stillMissingPlaceholders)
+          }
+          if (fallbackHasResumeContent) {
+            console.warn("Fallback template still includes {{RESUME_CONTENT}} placeholder")
+          }
+          // Use the original template and add missing placeholders manually
+          // Note: We'll add {{RESUME_CONTENT}} back since ensureAllPlaceholders expects it
+          const placeholdersToAdd = [...missingPlaceholders]
+          if (!hasResumeContentPlaceholder) {
+            placeholdersToAdd.push('{{RESUME_CONTENT}}')
+          }
+          htmlTemplate = ensureAllPlaceholders(htmlTemplate, placeholdersToAdd, resumeContent, personalInfo)
+        }
+      } catch (fallbackError) {
+        console.error("Fallback generation failed:", fallbackError)
+        // Use the original template and add missing placeholders manually
+        // Note: We'll add {{RESUME_CONTENT}} back since ensureAllPlaceholders expects it
+        const placeholdersToAdd = [...missingPlaceholders]
+        if (!hasResumeContentPlaceholder) {
+          placeholdersToAdd.push('{{RESUME_CONTENT}}')
+        }
+        htmlTemplate = ensureAllPlaceholders(htmlTemplate, placeholdersToAdd, resumeContent, personalInfo)
+      }
+    } else {
+      // Template has all required placeholders and correctly doesn't have {{RESUME_CONTENT}}
+      // This is the desired behavior - the AI has integrated the content directly
+      if (!hasResumeContentPlaceholder) {
+        console.log("Template correctly excludes {{RESUME_CONTENT}} - content is already integrated, no further processing needed")
+        // Don't add the placeholder back since content is already styled and integrated
+      }
     }
 
     // Post-process HTML for better space optimization
     htmlTemplate = optimizeLayoutSpacing(htmlTemplate)
 
-    console.log("Custom resume style generated successfully")
+    // Final validation to ensure template is complete and functional
+    // Don't expect RESUME_CONTENT placeholder if content is already integrated
+    const expectResumeContentPlaceholder = htmlTemplate.includes('{{RESUME_CONTENT}}')
+    const finalValidation = validateTemplate(htmlTemplate, expectResumeContentPlaceholder)
+    if (!finalValidation.isValid) {
+      console.error("Final validation failed:", finalValidation.errors)
+      throw new Error(`Generated template failed validation: ${finalValidation.errors.join(', ')}`)
+    }
+
+    console.log("Custom resume style generated and validated successfully")
 
     return NextResponse.json({
       htmlTemplate: htmlTemplate,

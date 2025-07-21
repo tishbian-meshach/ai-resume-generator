@@ -261,9 +261,9 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen bg-slate-50 p-4">
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
+        <div className="text-center mt-8 mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">AI Resume & Cover Letter Generator</h1>
           <p className="text-lg text-gray-600">
             Create ATS-friendly resumes and personalized cover letter paragraphs using Gemini AI
