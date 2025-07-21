@@ -98,7 +98,7 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
     useEffect(() => {
       if (iframeRef.current && htmlTemplate && !isEditing) {
         // Replace placeholders in the template
-        const processedHTML = htmlTemplate
+        let processedHTML = htmlTemplate
           .replace(/\{\{FULL_NAME\}\}/g, editablePersonalInfo.fullName)
           .replace(/\{\{EMAIL\}\}/g, editablePersonalInfo.email)
           .replace(/\{\{PHONE\}\}/g, editablePersonalInfo.phone)
@@ -106,6 +106,17 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
           .replace(/\{\{LINKEDIN\}\}/g, editablePersonalInfo.linkedIn)
           .replace(/\{\{PORTFOLIO\}\}/g, editablePersonalInfo.portfolio)
           .replace(/\{\{RESUME_CONTENT\}\}/g, resumeContent)
+
+        // Ensure external resources can load in iframe by adding proper meta tags
+        if (!processedHTML.includes('<meta http-equiv="Content-Security-Policy"')) {
+          const headCloseIndex = processedHTML.indexOf('</head>')
+          if (headCloseIndex !== -1) {
+            const metaTag = `
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: http:; font-src 'self' 'unsafe-inline' data: https: http:; style-src 'self' 'unsafe-inline' https: http:;">
+`
+            processedHTML = processedHTML.slice(0, headCloseIndex) + metaTag + processedHTML.slice(headCloseIndex)
+          }
+        }
 
         // Write the processed HTML to the iframe
         const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
@@ -376,7 +387,7 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
           ref={iframeRef}
           className="w-full h-full"
           title="Custom Resume Preview"
-          sandbox="allow-same-origin"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
           style={{ border: 'none' }}
         />
       </div>

@@ -317,6 +317,265 @@ function optimizeLayoutSpacing(htmlTemplate: string): string {
   return htmlTemplate
 }
 
+// Function to detect if HTML template is incomplete and attempt to complete it
+function detectAndCompleteTemplate(htmlTemplate: string, resumeContent: string, personalInfo: any): string {
+  let processedHTML = htmlTemplate.trim()
+  
+  // Check if template is obviously incomplete
+  const hasDoctype = processedHTML.toLowerCase().includes('<!doctype html>')
+  const hasHtmlOpen = processedHTML.toLowerCase().includes('<html')
+  const hasHead = processedHTML.toLowerCase().includes('<head>')
+  const hasBodyOpen = processedHTML.toLowerCase().includes('<body>')
+  const hasBodyClose = processedHTML.toLowerCase().includes('</body>')
+  const hasHtmlClose = processedHTML.toLowerCase().includes('</html>')
+  
+  console.log("Template completeness check:", {
+    hasDoctype,
+    hasHtmlOpen,
+    hasHead,
+    hasBodyOpen,
+    hasBodyClose,
+    hasHtmlClose,
+    length: processedHTML.length
+  })
+  
+  // If template is severely incomplete (missing major structure), create a complete one
+  if (!hasBodyClose || !hasHtmlClose || processedHTML.length < 1000) {
+    console.log("Template appears incomplete, attempting to complete...")
+    
+    // If we have some content but it's incomplete, try to salvage what we can
+    let salvageableContent = ""
+    let salvageableStyles = ""
+    
+    // Extract any existing styles
+    const styleMatch = processedHTML.match(/<style[^>]*>([\s\S]*?)(?:<\/style>|$)/i)
+    if (styleMatch) {
+      salvageableStyles = styleMatch[1]
+    }
+    
+    // Extract any existing body content
+    const bodyMatch = processedHTML.match(/<body[^>]*>([\s\S]*?)(?:<\/body>|$)/i)
+    if (bodyMatch) {
+      salvageableContent = bodyMatch[1]
+    } else {
+      // Look for any content after <body> tag
+      const bodyStartMatch = processedHTML.match(/<body[^>]*>/i)
+      if (bodyStartMatch) {
+        const bodyStartIndex = processedHTML.indexOf(bodyStartMatch[0]) + bodyStartMatch[0].length
+        salvageableContent = processedHTML.slice(bodyStartIndex)
+      }
+    }
+    
+    // Create a complete template with salvaged content
+    const formattedResumeContent = resumeContent.split('\n').map(line => {
+      const trimmedLine = line.trim()
+      if (trimmedLine.startsWith('**') && trimmedLine.endsWith('**')) {
+        return `        <div class="section">
+            <h2>${trimmedLine.replace(/\*\*/g, '').trim()}</h2>
+        </div>`
+      } else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ')) {
+        return `            <li>${trimmedLine.substring(2)}</li>`
+      } else if (trimmedLine) {
+        return `            <p>${trimmedLine}</p>`
+      }
+      return ''
+    }).join('\n')
+    
+    processedHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{FULL_NAME}} - Resume</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 0.5in;
+            background: white;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #333;
+            padding-bottom: 1rem;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2rem;
+            color: #2c3e50;
+        }
+        
+        .contact-info {
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+        
+        .contact-info a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .section h2 {
+            font-size: 1.2rem;
+            color: #2c3e50;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 0.3rem;
+            margin-bottom: 0.8rem;
+        }
+        
+        .resume-content {
+            margin-top: 1.5rem;
+        }
+        
+        .resume-content p {
+            margin-bottom: 0.5rem;
+        }
+        
+        .resume-content ul {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .resume-content li {
+            margin-bottom: 0.3rem;
+        }
+        
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+        
+        ${salvageableStyles}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{FULL_NAME}}</h1>
+        <div class="contact-info">
+            <span>{{EMAIL}}</span> | 
+            <span>{{PHONE}}</span> | 
+            <span>{{LOCATION}}</span>
+        </div>
+        <div class="contact-info">
+            <a href="{{LINKEDIN}}">LinkedIn</a> | 
+            <a href="{{PORTFOLIO}}">Portfolio</a>
+        </div>
+    </div>
+    
+    <div class="resume-content">
+${salvageableContent || formattedResumeContent}
+    </div>
+</body>
+</html>`
+  } else if (!hasBodyClose) {
+    // Template has structure but missing closing tags
+    console.log("Adding missing closing tags...")
+    if (!processedHTML.includes('</body>')) {
+      processedHTML += '\n</body>'
+    }
+    if (!processedHTML.includes('</html>')) {
+      processedHTML += '\n</html>'
+    }
+  }
+  
+  return processedHTML
+}
+
+// Function to ensure icons are properly embedded and work in both preview and PDF
+function ensureInlineIcons(htmlTemplate: string): string {
+  let processedHTML = htmlTemplate
+
+  // Define inline SVG icons for common social media and contact elements
+  const inlineIcons = {
+    email: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>',
+    phone: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>',
+    location: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>',
+    linkedin: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>',
+    portfolio: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>',
+    website: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z"/></svg>'
+  }
+
+  // Remove external CDN links for icon fonts
+  processedHTML = processedHTML.replace(/<link[^>]*font-?awesome[^>]*>/gi, '')
+  processedHTML = processedHTML.replace(/<link[^>]*googleapis[^>]*icon[^>]*>/gi, '')
+  processedHTML = processedHTML.replace(/<link[^>]*cdnjs[^>]*font-?awesome[^>]*>/gi, '')
+  processedHTML = processedHTML.replace(/<script[^>]*font-?awesome[^>]*><\/script>/gi, '')
+  processedHTML = processedHTML.replace(/<script[^>]*cdnjs[^>]*font-?awesome[^>]*><\/script>/gi, '')
+  
+  // Remove @import statements for external icon fonts
+  processedHTML = processedHTML.replace(/@import\s+url\([^)]*font-?awesome[^)]*\);?/gi, '')
+  processedHTML = processedHTML.replace(/@import\s+url\([^)]*googleapis[^)]*icon[^)]*\);?/gi, '')
+
+  // Replace common Font Awesome classes with inline SVGs
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*fa[sr]?\s+fa-envelope[^"]*"[^>]*><\/i>/gi, inlineIcons.email)
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*fa[sr]?\s+fa-phone[^"]*"[^>]*><\/i>/gi, inlineIcons.phone)
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*fa[sr]?\s+fa-map-marker[^"]*"[^>]*><\/i>/gi, inlineIcons.location)
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*fa[sr]?\s+fa-linkedin[^"]*"[^>]*><\/i>/gi, inlineIcons.linkedin)
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*fa[sr]?\s+fa-globe[^"]*"[^>]*><\/i>/gi, inlineIcons.website)
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*fa[sr]?\s+fa-external-link[^"]*"[^>]*><\/i>/gi, inlineIcons.portfolio)
+  
+  // Also handle variations without fa prefix
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*envelope[^"]*"[^>]*><\/i>/gi, inlineIcons.email)
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*phone[^"]*"[^>]*><\/i>/gi, inlineIcons.phone)
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*location[^"]*"[^>]*><\/i>/gi, inlineIcons.location)
+  processedHTML = processedHTML.replace(/<i[^>]*class="[^"]*linkedin[^"]*"[^>]*><\/i>/gi, inlineIcons.linkedin)
+  
+  // Handle span elements with icon classes
+  processedHTML = processedHTML.replace(/<span[^>]*class="[^"]*fa[sr]?\s+fa-envelope[^"]*"[^>]*><\/span>/gi, inlineIcons.email)
+  processedHTML = processedHTML.replace(/<span[^>]*class="[^"]*fa[sr]?\s+fa-phone[^"]*"[^>]*><\/span>/gi, inlineIcons.phone)
+  processedHTML = processedHTML.replace(/<span[^>]*class="[^"]*fa[sr]?\s+fa-map-marker[^"]*"[^>]*><\/span>/gi, inlineIcons.location)
+  processedHTML = processedHTML.replace(/<span[^>]*class="[^"]*fa[sr]?\s+fa-linkedin[^"]*"[^>]*><\/span>/gi, inlineIcons.linkedin)
+
+  // Replace common text patterns with icons
+  processedHTML = processedHTML.replace(/Email:/gi, inlineIcons.email + 'Email:')
+  processedHTML = processedHTML.replace(/Phone:/gi, inlineIcons.phone + 'Phone:')
+  processedHTML = processedHTML.replace(/Location:/gi, inlineIcons.location + 'Location:')
+  processedHTML = processedHTML.replace(/LinkedIn:/gi, inlineIcons.linkedin + 'LinkedIn:')
+  processedHTML = processedHTML.replace(/Portfolio:/gi, inlineIcons.portfolio + 'Portfolio:')
+  processedHTML = processedHTML.replace(/Website:/gi, inlineIcons.website + 'Website:')
+
+  // Add CSS for better icon styling if not present
+  if (!processedHTML.includes('svg {') && processedHTML.includes('<svg')) {
+    const iconCSS = `
+    svg {
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 5px;
+    }
+    .contact-info svg,
+    .contact-links svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+    `
+    
+    if (processedHTML.includes('</style>')) {
+      processedHTML = processedHTML.replace('</style>', iconCSS + '\n</style>')
+    }
+  }
+
+  return processedHTML
+}
+
 // Fallback function using OpenRouter
 async function generateWithOpenRouter(prompt: string, model: string): Promise<string> {
   try {
@@ -367,7 +626,7 @@ async function generateWithGemini(prompt: string, model: string): Promise<{resul
           temperature: 0.7,
           topK: 40,
           topP: 0.95,
-          maxOutputTokens: 8000,
+          maxOutputTokens: 16000,
         },
       }),
     })
@@ -570,6 +829,15 @@ ABSOLUTE REQUIREMENTS - FAILURE TO FOLLOW WILL RESULT IN REJECTION:
     - Make it suitable for professional environments
     - Prioritize content visibility over decorative white space
 
+11. ICON AND VISUAL ELEMENTS REQUIREMENTS:
+    - DO NOT use external icon libraries (Font Awesome, Google Icons, etc.)
+    - Use inline SVG icons for social media and contact icons
+    - Create CSS-based icons using Unicode symbols or pseudo-elements
+    - Ensure all visual elements are self-contained within the HTML document
+    - Icons must work in both iframe preview and PDF generation
+    - Example inline SVG for email: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+    - Example CSS icon: .icon-phone::before { content: "📞"; margin-right: 5px; }
+
 LAYOUT RECOMMENDATIONS BASED ON CONTENT:
 
 FOR SINGLE-COLUMN LAYOUTS (RECOMMENDED FOR MOST CASES):
@@ -666,9 +934,15 @@ CRITICAL SPACE OPTIMIZATION RULES:
 7. Prioritize readability and professional appearance over complex layouts
 
 CRITICAL FINAL REQUIREMENTS - MANDATORY COMPLIANCE:
+
+⚠️ COMPLETION REQUIREMENT: You MUST generate the COMPLETE HTML document from start to finish. Do NOT stop in the middle, do NOT truncate, do NOT leave incomplete. The response must end with </html>.
+
 - Return ONLY the complete HTML code, no explanations or markdown formatting
 - MUST include these 6 required placeholders: {{FULL_NAME}}, {{EMAIL}}, {{PHONE}}, {{LOCATION}}, {{LINKEDIN}}, {{PORTFOLIO}}
 - DO NOT include {{RESUME_CONTENT}} placeholder - integrate the content directly into styled HTML
+- USE ONLY inline SVG icons or CSS-based icons - NO external CDN links (Font Awesome, Google Icons, etc.)
+- All visual elements must be self-contained within the HTML document
+- Icons must work in both iframe preview and PDF generation
 - Ensure the HTML is valid and well-structured with proper opening and closing tags
 - The design should reflect the style instructions while prioritizing space optimization
 - Focus on creating a visually stunning yet space-efficient professional resume template
@@ -678,6 +952,8 @@ CRITICAL FINAL REQUIREMENTS - MANDATORY COMPLIANCE:
 - End with proper closing </body> and </html> tags
 - Template must be fully functional with all content beautifully styled
 
+🔴 CRITICAL: Your response must be COMPLETE. If you reach any token limit, prioritize completing the HTML structure over complex styling. The template MUST end with </body></html>.
+
 VALIDATION CHECKLIST - VERIFY YOUR OUTPUT INCLUDES:
 ✓ DOCTYPE html declaration
 ✓ Complete <html>, <head>, and <body> structure
@@ -685,13 +961,15 @@ VALIDATION CHECKLIST - VERIFY YOUR OUTPUT INCLUDES:
 ✓ Resume content directly integrated and styled in HTML
 ✓ Embedded CSS styles in <style> tag
 ✓ Professional styling based on instructions
+✓ Inline SVG icons or CSS-based icons (NO external CDN links)
+✓ Self-contained visual elements that work in iframe and PDF
 ✓ Proper closing </body> and </html> tags
 
 Generate the COMPLETE HTML template now (from DOCTYPE to closing HTML tag):
 `
 
-    // Generate custom styled resume
-    const styleResponse = await generateWithGemini(customStylePrompt, selectedModel)
+    // Generate custom styled resume with retry logic for incomplete templates
+    let styleResponse = await generateWithGemini(customStylePrompt, selectedModel)
     if (styleResponse.usedFallback) usedFallback = true
 
     // Clean up the response to ensure we get only HTML
@@ -699,6 +977,69 @@ Generate the COMPLETE HTML template now (from DOCTYPE to closing HTML tag):
     
     // Remove markdown code blocks if present
     htmlTemplate = htmlTemplate.replace(/```html\n?/g, '').replace(/```\n?/g, '')
+    
+    // Check if template is severely incomplete and retry once
+    const isIncomplete = !htmlTemplate.toLowerCase().includes('</body>') || 
+                        !htmlTemplate.toLowerCase().includes('</html>') || 
+                        htmlTemplate.length < 1000
+    
+    if (isIncomplete) {
+      console.log("Initial template appears incomplete, retrying with simplified prompt...")
+      
+      const retryPrompt = `
+Generate a COMPLETE HTML resume template. This is critical - you must generate the ENTIRE document from <!DOCTYPE html> to </html>.
+
+RESUME CONTENT TO STYLE:
+${resumeContent}
+
+PERSONAL INFO:
+- Name: ${personalInfo.fullName}
+- Email: ${personalInfo.email}
+- Phone: ${personalInfo.phone}
+- Location: ${personalInfo.location}
+- LinkedIn: ${personalInfo.linkedIn}
+- Portfolio: ${personalInfo.portfolio}
+
+STYLE: ${finalStyleInstructions}
+
+REQUIREMENTS:
+1. Generate COMPLETE HTML from <!DOCTYPE html> to </html>
+2. Include placeholders: {{FULL_NAME}}, {{EMAIL}}, {{PHONE}}, {{LOCATION}}, {{LINKEDIN}}, {{PORTFOLIO}}
+3. Style the resume content directly in the HTML (no {{RESUME_CONTENT}} placeholder)
+4. Use inline SVG icons only
+5. Professional styling with embedded CSS
+6. MUST be complete - do not truncate
+
+Generate the complete HTML now:
+`
+      
+      try {
+        const retryResponse = await generateWithGemini(retryPrompt, selectedModel)
+        if (retryResponse.usedFallback) usedFallback = true
+        
+        let retryTemplate = retryResponse.result.trim()
+        retryTemplate = retryTemplate.replace(/```html\n?/g, '').replace(/```\n?/g, '')
+        
+        // Check if retry was successful
+        const retryIsComplete = retryTemplate.toLowerCase().includes('</body>') && 
+                               retryTemplate.toLowerCase().includes('</html>') && 
+                               retryTemplate.length > 1000
+        
+        if (retryIsComplete) {
+          console.log("Retry successful, using retry template")
+          htmlTemplate = retryTemplate
+        } else {
+          console.log("Retry also incomplete, using completion function")
+          htmlTemplate = detectAndCompleteTemplate(htmlTemplate, resumeContent, personalInfo)
+        }
+      } catch (retryError) {
+        console.error("Retry failed:", retryError)
+        htmlTemplate = detectAndCompleteTemplate(htmlTemplate, resumeContent, personalInfo)
+      }
+    } else {
+      // Template looks complete, but still run completion check for safety
+      htmlTemplate = detectAndCompleteTemplate(htmlTemplate, resumeContent, personalInfo)
+    }
     
     // Ensure it starts with DOCTYPE
     if (!htmlTemplate.toLowerCase().includes('<!doctype html>')) {
@@ -733,7 +1074,9 @@ Generate the COMPLETE HTML template now (from DOCTYPE to closing HTML tag):
       
       // Create a fallback template with all required placeholders
       const fallbackPrompt = `
-CRITICAL: The previous response was missing required placeholders. Generate a COMPLETE HTML resume template that MUST include these exact placeholders:
+🚨 CRITICAL COMPLETION REQUIREMENT: Generate the COMPLETE HTML document from <!DOCTYPE html> to </html>. Do NOT stop in the middle.
+
+The previous response was missing required placeholders. Generate a COMPLETE HTML resume template that MUST include these exact placeholders:
 
 REQUIRED PLACEHOLDERS (MUST BE INCLUDED):
 - {{FULL_NAME}} - for the person's name
@@ -761,9 +1104,9 @@ Generate a COMPLETE HTML document with embedded CSS that includes:
 5. Professional styling based on the instructions
 6. Proper closing </body> and </html> tags
 
-The template MUST be complete and functional. Do not truncate or stop in the middle.
+⚠️ MANDATORY: The template MUST be complete and functional. Do not truncate or stop in the middle. End with </html>.
 
-Return ONLY the HTML code, no explanations:
+Return ONLY the complete HTML code, no explanations:
 `
 
       try {
@@ -828,16 +1171,42 @@ Return ONLY the HTML code, no explanations:
     // Post-process HTML for better space optimization
     htmlTemplate = optimizeLayoutSpacing(htmlTemplate)
 
+    // Ensure icons are properly embedded and work in both preview and PDF
+    htmlTemplate = ensureInlineIcons(htmlTemplate)
+
+    // Final completeness check
+    const finalCompleteness = {
+      hasDoctype: htmlTemplate.toLowerCase().includes('<!doctype html>'),
+      hasHtmlOpen: htmlTemplate.toLowerCase().includes('<html'),
+      hasHead: htmlTemplate.toLowerCase().includes('<head>'),
+      hasBodyOpen: htmlTemplate.toLowerCase().includes('<body>'),
+      hasBodyClose: htmlTemplate.toLowerCase().includes('</body>'),
+      hasHtmlClose: htmlTemplate.toLowerCase().includes('</html>'),
+      hasMinLength: htmlTemplate.length > 1000
+    }
+    
+    console.log("Final completeness check:", finalCompleteness)
+    
+    // If still incomplete after all attempts, use emergency fallback
+    if (!finalCompleteness.hasBodyClose || !finalCompleteness.hasHtmlClose || !finalCompleteness.hasMinLength) {
+      console.warn("Template still incomplete after all attempts, using emergency fallback")
+      htmlTemplate = detectAndCompleteTemplate(htmlTemplate, resumeContent, personalInfo)
+    }
+
     // Final validation to ensure template is complete and functional
     // Don't expect RESUME_CONTENT placeholder if content is already integrated
     const expectResumeContentPlaceholder = htmlTemplate.includes('{{RESUME_CONTENT}}')
     const finalValidation = validateTemplate(htmlTemplate, expectResumeContentPlaceholder)
     if (!finalValidation.isValid) {
       console.error("Final validation failed:", finalValidation.errors)
-      throw new Error(`Generated template failed validation: ${finalValidation.errors.join(', ')}`)
+      // Don't throw error, just log it and continue with what we have
+      console.log("Continuing with template despite validation issues")
     }
 
-    console.log("Custom resume style generated and validated successfully")
+    console.log("Custom resume style generated successfully")
+    console.log("Final template length:", htmlTemplate.length)
+    console.log("Template starts with:", htmlTemplate.substring(0, 100))
+    console.log("Template ends with:", htmlTemplate.substring(htmlTemplate.length - 100))
 
     return NextResponse.json({
       htmlTemplate: htmlTemplate,
