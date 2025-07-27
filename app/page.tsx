@@ -197,9 +197,7 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
 
       toast({
         title: "Success!",
-        description: data.usedFallback 
-          ? "Custom style generated using fallback service" 
-          : "Custom resume style generated successfully",
+        description: "Custom resume style generated successfully",
       })
       
       return true
@@ -237,16 +235,18 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
   }
 
   const handleStyleOptionChange = (optionId: string, htmlTemplate: string) => {
-    setGeneratedContent({
-      ...generatedContent,
-      selectedStyleOption: optionId,
-      customHtmlTemplate: htmlTemplate
-    })
-    
-    toast({
-      title: "Style Updated",
-      description: `Switched to ${optionId} layout`,
-    })
+    if (generatedContent) {
+      setGeneratedContent({
+        ...generatedContent,
+        selectedStyleOption: optionId,
+        customHtmlTemplate: htmlTemplate
+      })
+      
+      toast({
+       title: "Style Updated",
+       description: `Switched to ${optionId} layout`,
+      })
+   }
   }
 
   const generateContent = async () => {
@@ -295,19 +295,10 @@ AI-Enhanced Freelance Graphic Designer | Self-Employed | 2019 - Present | Freela
       setGeneratedContent(data)
       setShowAnalyzer(true) // Show analyzer after successful generation
 
-      // Show different toast based on whether fallback was used
-      if (data.usedFallback) {
-        toast({
-          title: "Success! (Using OpenRouter Fallback)",
-          description: "Google's API was overloaded, so we used OpenRouter to generate your content successfully",
-          variant: "default",
-        })
-      } else {
-        toast({
-          title: "Success!",
-          description: "Resume and cover letter paragraph generated successfully",
-        })
-      }
+      toast({
+        title: "Success!",
+        description: "Resume and cover letter paragraph generated successfully",
+      })
     } catch (error) {
       toast({
         title: "Error",

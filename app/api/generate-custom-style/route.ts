@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import OpenAI from 'openai'
 
 export const maxDuration = 60
 
@@ -55,20 +54,7 @@ const getGoogleAPIURL = (model: string) => {
   return `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GOOGLE_API_KEY}`
 }
 
-// OpenRouter configuration for fallback
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    "HTTP-Referer": "https://ai-resumex.vercel.app",
-    "X-Title": "AI Resume Generator",
-  },
-})
-
-// Use single OpenRouter model for all fallbacks
-const getOpenRouterModel = () => {
-  return "google/gemini-2.0-flash-exp:free"
-}
+// Removed OpenRouter fallback configuration
 
 // Function to ensure all required placeholders are present in the template
 function ensureAllPlaceholders(htmlTemplate: string, missingPlaceholders: string[], resumeContent: string, personalInfo: any): string {
@@ -710,8 +696,8 @@ function ensureInlineIcons(htmlTemplate: string): string {
   return processedHTML
 }
 
-// Function to analyze content and suggest optimal layout for A4
-function analyzeContentForA4Layout(resumeContent: string): {
+// Function to analyze content and suggest optimal layout
+function analyzeContentForLayout(resumeContent: string): {
   recommendedLayout: 'single' | 'two-column',
   contentLength: 'short' | 'medium' | 'long',
   wordCount: number,
@@ -727,15 +713,15 @@ function analyzeContentForA4Layout(resumeContent: string): {
   if (wordCount < 400) {
     contentLength = 'short'
     recommendedLayout = 'single'
-    suggestions = 'Use single-column with larger fonts and generous spacing to fill A4 sheet'
+    suggestions = 'Use single-column with larger fonts and generous spacing for better readability'
   } else if (wordCount < 800) {
     contentLength = 'medium'
     recommendedLayout = 'two-column'
-    suggestions = 'Two-column layout recommended for optimal A4 space utilization'
+    suggestions = 'Two-column layout recommended for optimal space utilization'
   } else {
     contentLength = 'long'
     recommendedLayout = 'two-column'
-    suggestions = 'Use compact two-column layout with reduced font sizes to fit A4 constraints'
+    suggestions = 'Use compact two-column layout with optimized font sizes for content density'
   }
   
   return {
@@ -746,34 +732,7 @@ function analyzeContentForA4Layout(resumeContent: string): {
   }
 }
 
-// Fallback function using OpenRouter
-async function generateWithOpenRouter(prompt: string, model: string): Promise<string> {
-  try {
-    console.log(`Fallback: Using OpenRouter with model ${getOpenRouterModel()}`)
-    
-    const completion = await openai.chat.completions.create({
-      model: getOpenRouterModel(),
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      max_tokens: 8000,
-      temperature: 0.7,
-    })
-
-    const result = completion.choices[0]?.message?.content
-    if (!result) {
-      throw new Error("No content generated from OpenRouter")
-    }
-
-    return result
-  } catch (error) {
-    console.error("Error calling OpenRouter:", error)
-    throw error
-  }
-}
+// Removed OpenRouter fallback function
 
 async function generateWithGemini(prompt: string, model: string): Promise<{result: string, usedFallback: boolean}> {
   try {
@@ -804,14 +763,6 @@ async function generateWithGemini(prompt: string, model: string): Promise<{resul
     if (!response.ok) {
       const errorData = await response.text()
       console.error("Google API Error:", errorData)
-      
-      // Check if the error is a 503 (overloaded) or other retryable error
-      if (response.status === 503 || response.status === 429 || response.status === 502) {
-        console.log(`Google API returned ${response.status}, falling back to OpenRouter...`)
-        const fallbackResult = await generateWithOpenRouter(prompt, model)
-        return { result: fallbackResult, usedFallback: true }
-      }
-      
       throw new Error(`Google API request failed: ${response.status}`)
     }
 
@@ -824,24 +775,6 @@ async function generateWithGemini(prompt: string, model: string): Promise<{resul
     return { result: data.candidates[0].content.parts[0].text, usedFallback: false }
   } catch (error) {
     console.error("Error calling Google Generative AI:", error)
-    
-    // If it's a network error or other failure, try OpenRouter as fallback
-    if (error instanceof Error && (
-      error.message.includes('fetch') || 
-      error.message.includes('network') || 
-      error.message.includes('503') ||
-      error.message.includes('overloaded')
-    )) {
-      console.log("Network error detected, falling back to OpenRouter...")
-      try {
-        const fallbackResult = await generateWithOpenRouter(prompt, model)
-        return { result: fallbackResult, usedFallback: true }
-      } catch (fallbackError) {
-        console.error("Both Google API and OpenRouter failed:", fallbackError)
-        throw new Error("Both primary and fallback AI services are unavailable")
-      }
-    }
-    
     throw error
   }
 }
@@ -861,11 +794,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validate selected model
-    const validModels = ["gemini-2.5-pro", "gemini-2.0-flash"]
+    // Validate selected model - only Gemini 2.5 Pro is allowed
+    const validModels = ["gemini-2.5-pro"]
     if (!selectedModel || !validModels.includes(selectedModel)) {
       return NextResponse.json(
-        { error: "Invalid model selected" },
+        { error: "Invalid model selected. Only gemini-2.5-pro is supported." },
         { status: 400 },
       )
     }
@@ -892,15 +825,15 @@ export async function POST(req: NextRequest) {
       console.log("Surprise Me style selected:", finalStyleInstructions)
     }
 
-    // Analyze content for optimal A4 layout
-    const contentAnalysis = analyzeContentForA4Layout(resumeContent)
-    console.log("Content analysis for A4 layout:", contentAnalysis)
+    // Analyze content for optimal layout
+    const contentAnalysis = analyzeContentForLayout(resumeContent)
+    console.log("Content analysis for layout:", contentAnalysis)
 
-    // Enhanced Multi-Option Custom Style Generation Prompt
+    // Single Responsive Template Generation Prompt
     const customStylePrompt = `
-You are an expert web developer and designer specializing in creating beautiful, professional resume templates optimized for A4 single-sheet layout. You MUST generate MULTIPLE styling options (3 different variations) with different font sizes, spacing, and layouts to handle different content lengths.
+You are an expert web developer and designer specializing in creating beautiful, professional resume templates. You MUST generate ONE optimal template that displays all content without size restrictions.
 
-CONTENT ANALYSIS FOR A4 OPTIMIZATION:
+CONTENT ANALYSIS:
 - Word Count: ${contentAnalysis.wordCount} words
 - Content Length: ${contentAnalysis.contentLength}
 - Recommended Layout: ${contentAnalysis.recommendedLayout}
@@ -924,110 +857,44 @@ ${isSurpriseMe ? 'MODE: SURPRISE ME - Be creative and unique while maintaining p
 
 CRITICAL: You must return a JSON object with the following structure:
 {
-  "options": [
-    {
-      "id": "compact",
-      "name": "Compact Layout",
-      "description": "Smaller fonts and tight spacing for content-heavy resumes",
-      "htmlTemplate": "COMPLETE HTML DOCUMENT HERE",
-      "targetHeight": "260mm",
-      "fontSizes": {
-        "h1": "18px",
-        "h2": "14px", 
-        "h3": "12px",
-        "body": "10px"
-      },
-      "spacing": {
-        "sectionMargin": "8px",
-        "lineHeight": "1.2",
-        "padding": "4px"
-      },
-      "layout": {
-        "type": "single-column",
-        "columns": "1fr",
-        "gap": "8px"
-      }
-    },
-    {
-      "id": "standard",
-      "name": "Standard Layout", 
-      "description": "Balanced fonts and spacing for normal content length",
-      "htmlTemplate": "COMPLETE HTML DOCUMENT HERE",
-      "targetHeight": "260mm",
-      "fontSizes": {
-        "h1": "22px",
-        "h2": "16px",
-        "h3": "14px", 
-        "body": "12px"
-      },
-      "spacing": {
-        "sectionMargin": "12px",
-        "lineHeight": "1.4",
-        "padding": "8px"
-      },
-      "layout": {
-        "type": "single-column",
-        "columns": "1fr",
-        "gap": "12px"
-      }
-    },
-    {
-      "id": "spacious",
-      "name": "Spacious Layout",
-      "description": "Larger fonts and generous spacing for shorter content",
-      "htmlTemplate": "COMPLETE HTML DOCUMENT HERE", 
-      "targetHeight": "260mm",
-      "fontSizes": {
-        "h1": "26px",
-        "h2": "18px",
-        "h3": "16px",
-        "body": "14px"
-      },
-      "spacing": {
-        "sectionMargin": "16px",
-        "lineHeight": "1.6", 
-        "padding": "12px"
-      },
-      "layout": {
-        "type": "two-column",
-        "columns": "1fr 2fr",
-        "gap": "16px"
-      }
-    }
-  ],
+  "htmlTemplate": "COMPLETE HTML DOCUMENT WITH RESPONSIVE CLASSES HERE",
   "defaultOption": "standard"
 }
 
-ABSOLUTE REQUIREMENTS FOR EACH OPTION - FAILURE TO FOLLOW WILL RESULT IN REJECTION:
+ABSOLUTE REQUIREMENTS - FAILURE TO FOLLOW WILL RESULT IN REJECTION:
 
 1. JSON RESPONSE FORMAT:
    - Return ONLY valid JSON in the exact structure shown above
    - No additional text, explanations, or markdown formatting
-   - Each option must have all required fields filled
+   - Must include htmlTemplate and defaultOption fields
 
-2. COMPLETE HTML GENERATION FOR EACH OPTION:
-   - Generate 3 COMPLETE HTML documents (one for each option)
-   - Include ALL sections from the resume content in each template
-   - Ensure closing </body> and </html> tags are included
-   - Each template must be fully functional and complete
+2. CSS CLASSES:
+   - Use semantic class names: .name-header, .section-header, .body-text, .contact-info
+   - No responsive prefixes needed - use standard CSS
+   - Example: class="name-header", class="section-header", class="body-text"
 
-3. PROGRESSIVE SIZING STRATEGY:
-   - COMPACT: Smaller fonts (10-14px body), tight spacing (1.2 line-height), minimal margins
-   - STANDARD: Medium fonts (12-16px body), balanced spacing (1.4 line-height), normal margins  
-   - SPACIOUS: Larger fonts (14-18px body), generous spacing (1.6 line-height), ample margins
+3. OPTIMAL SIZING STRATEGY:
+   - Generate ONE optimal template with balanced font sizes and spacing
+   - Use standard font sizes: 14px for body text, 18px for h2, 22px for h1
+   - Use balanced spacing: 12px margins, 16px padding, 1.4 line-height
+   - Focus on creating the best possible layout that can be scaled if needed
 
-4. LAYOUT VARIATIONS:
-   - COMPACT: Single-column, dense layout for maximum content fit
-   - STANDARD: Single-column or balanced two-column based on content
-   - SPACIOUS: Two-column with generous white space (only if content allows)
+4. FONT AND SPACING GUIDELINES:
+   - Body text: 14px font-size, 1.4 line-height
+   - H1 (name): 22px font-size, 1.3 line-height
+   - H2 (sections): 18px font-size, 1.3 line-height
+   - H3 (subsections): 16px font-size, 1.3 line-height
+   - Margins: 12px between sections, 8px between items
+   - Padding: 16px for containers, 8px for smaller elements
 
-5. ADAPTIVE DESIGN PRINCIPLES:
-   - Each option should handle the same content differently
-   - Compact option prioritizes fitting everything in A4
-   - Standard option balances readability and space efficiency
-   - Spacious option prioritizes visual appeal and readability
+5. LAYOUT REQUIREMENTS:
+   - Use standard CSS classes without responsive prefixes
+   - Focus on creating a well-balanced, professional layout
+   - Ensure proper hierarchy with font sizes and spacing
+   - Example: <h1 class="name-header">{{FULL_NAME}}</h1>
+   - Example: <p class="body-text">Content here</p>
 
-6. MANDATORY PLACEHOLDER INTEGRATION FOR ALL OPTIONS:
+6. MANDATORY PLACEHOLDER INTEGRATION:
    - {{FULL_NAME}} - REQUIRED: for the person's name (use in <h1> or title)
    - {{EMAIL}} - REQUIRED: for email address (use in contact section)
    - {{PHONE}} - REQUIRED: for phone number (use in contact section)
@@ -1038,8 +905,8 @@ ABSOLUTE REQUIREMENTS FOR EACH OPTION - FAILURE TO FOLLOW WILL RESULT IN REJECTI
    CRITICAL CONTENT INSTRUCTION: 
    - DO NOT include the {{RESUME_CONTENT}} placeholder in your template
    - Instead, directly incorporate and style the actual resume content provided above
-   - Transform the raw resume content into beautifully styled HTML sections
-   - The system will handle content placement automatically for optimal styling
+   - Transform the raw resume content into beautifully styled HTML sections with responsive classes
+   - Apply responsive classes to ALL content elements
 
 7. ENHANCED STYLING REQUIREMENTS:
    - Interpret the user's style instructions while prioritizing space optimization
@@ -1057,17 +924,17 @@ ABSOLUTE REQUIREMENTS FOR EACH OPTION - FAILURE TO FOLLOW WILL RESULT IN REJECTI
    - Keep all professional experience, skills, education, etc. exactly as provided
    - Organize content intelligently to minimize white space
 
-9. A4 SINGLE-SHEET OPTIMIZATION (CRITICAL):
-   - MUST fit on single A4 sheet (210mm × 297mm / 8.27" × 11.69")
+9. CONTENT GENERATION (CRITICAL):
+   - Generate FULL content without size restrictions - scaling will be handled separately
    - You have FULL CONTROL over all margins, padding, and spacing
    - Design your own margin system - no forced margins will be applied
-   - Container max-height: 260mm to prevent overflow
-   - If content exceeds A4 height, automatically:
+   - Let content flow naturally without height restrictions
+   - Focus on creating comprehensive, well-formatted content
      * Reduce font sizes (minimum 9px for body text, 11px for headings)
      * Decrease line spacing (minimum 1.2)
      * Adjust YOUR spacing system as needed
      * Prioritize content density over white space
-   - Include print-specific CSS with exact A4 dimensions
+   - Include print-specific CSS for professional printing
    - Use CSS to prevent page breaks and ensure single-page layout
    - CRITICAL: Use !important declarations for critical layout rules only
    - You control ALL styling - no external CSS will override your design
@@ -1101,11 +968,11 @@ FOR TWO-COLUMN LAYOUTS (RECOMMENDED FOR MODERN DESIGN):
 - Left sidebar (30-35%): Contact info, Skills, Certifications, Education, Languages
 - Right main area (65-70%): Professional Summary, Experience, Projects
 - Use background colors or subtle borders to create visual distinction
-- Ensure content distribution maximizes A4 space utilization
+- Ensure content distribution is well-organized and readable
 - Perfect for resumes with diverse skill sets and multiple sections
-- Creates professional, modern appearance while fitting A4 constraints
+- Creates professional, modern appearance with excellent readability
 
-EXAMPLE OPTIMIZED STRUCTURE:
+EXAMPLE RESPONSIVE TEMPLATE STRUCTURE:
 \`\`\`html
 <!DOCTYPE html>
 <html lang="en">
@@ -1114,7 +981,7 @@ EXAMPLE OPTIMIZED STRUCTURE:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{FULL_NAME}} - Resume</title>
     <style>
-        /* A4 Single-Sheet Optimized CSS */
+        /* Professional Resume CSS */
         * {
             margin: 0;
             padding: 0;
@@ -1123,187 +990,53 @@ EXAMPLE OPTIMIZED STRUCTURE:
         
         body {
             font-family: 'Arial', sans-serif;
-            line-height: 1.3;
             color: #333;
-            width: 210mm;
-            max-width: 210mm;
-            min-height: 297mm;
-            max-height: 297mm;
             margin: 0 auto;
             background: white;
-            font-size: 11px;
-            overflow: hidden;
             box-sizing: border-box;
         }
         
-        /* Single-column layout */
+        /* Optimal CSS Classes */
+        .name-header { font-size: 22px; line-height: 1.3; margin-bottom: 12px; font-weight: bold; }
+        .section-header { font-size: 18px; line-height: 1.3; margin-bottom: 8px; font-weight: 600; }
+        .body-text { font-size: 14px; line-height: 1.4; margin-bottom: 8px; }
+        .contact-info { font-size: 14px; line-height: 1.4; margin-bottom: 12px; }
+        .resume-container { padding: 16px; margin: 0 auto; }
+        .section { margin-bottom: 12px; }
+        .resume-list { margin: 8px 0; padding-left: 20px; }
+        .resume-list li { margin-bottom: 4px; font-size: 14px; line-height: 1.4; }
+        
+        /* Container */
         .resume-container {
-            display: block;
-            width: 100%;
             height: 260mm;
             max-height: 260mm;
             overflow: hidden;
-        }
-        
-        /* Two-column layout (enabled and recommended) */
-        .resume-container-two-col {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 10mm;
-            height: 260mm;
-            max-height: 260mm;
-            width: 100%;
-            overflow: hidden;
-        }
-        
-        .left-column {
-            height: 260mm;
-            max-height: 260mm;
-            overflow: hidden;
-            box-sizing: border-box;
-        }
-        
-        .right-column {
-            height: 260mm;
-            max-height: 260mm;
-            overflow: hidden;
-            box-sizing: border-box;
-        }
-        
-        /* Responsive font sizing for content overflow */
-        .compact {
-            font-size: 10px;
-            line-height: 1.2;
-        }
-        
-        .compact h1 { font-size: 16px; }
-        .compact h2 { font-size: 13px; }
-        .compact h3 { font-size: 11px; }
-        
-        @media print {
-            * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                color-adjust: exact !important;
-            }
-            
-            body {
-                width: 210mm !important;
-                height: 297mm !important;
-                margin: 0 !important;
-                padding: 15mm !important;
-                box-sizing: border-box !important;
-            }
-            
-            .resume-container,
-            .resume-container-two-col {
-                height: 260mm !important;
-                max-height: 260mm !important;
-                page-break-inside: avoid !important;
-                overflow: hidden !important;
-            }
-            
-            .left-column {
-                background: #f8f9fa !important;
-                padding: 8mm !important;
-                border-radius: 3mm !important;
-                height: 260mm !important;
-                max-height: 260mm !important;
-                overflow: hidden !important;
-                box-sizing: border-box !important;
-            }
-            
-            .right-column {
-                padding: 5mm 0 !important;
-                height: 260mm !important;
-                max-height: 260mm !important;
-                overflow: hidden !important;
-                box-sizing: border-box !important;
-            }
-            
-            /* Force spacing in PDF */
-            .section, section {
-                margin-bottom: 4mm !important;
-                padding: 0 !important;
-            }
-            
-            .left-column .section,
-            .left-column section {
-                margin-bottom: 3mm !important;
-                padding: 0 !important;
-            }
-            
-            /* Ensure padding is preserved in PDF */
-            .contact-info, .skills, .education, .certifications {
-                padding: 0 !important;
-                margin-bottom: 3mm !important;
-            }
-            
-            /* Force text spacing in containers */
-            .left-column p, .left-column li, .left-column div {
-                margin-left: 0 !important;
-                margin-right: 0 !important;
-                padding-left: 0 !important;
-                padding-right: 0 !important;
-            }
         }
     </style>
 </head>
 <body>
-    <!-- Choose ONE of these layouts based on content analysis -->
-    
-    <!-- OPTION 1: Single-column layout (for shorter content) -->
     <div class="resume-container">
         <header>
-            <h1>{{FULL_NAME}}</h1>
+            <h1 class="name-header">{{FULL_NAME}}</h1>
             <div class="contact-info">
                 <span>{{EMAIL}}</span> | <span>{{PHONE}}</span> | <span>{{LOCATION}}</span>
             </div>
-            <div class="links">
-                <a href="{{LINKEDIN}}">LinkedIn</a> | <a href="{{PORTFOLIO}}">Portfolio</a>
-            </div>
         </header>
-        <main>
-            <!-- Resume content styled and integrated directly here -->
-        </main>
-    </div>
-    
-    <!-- OPTION 2: Two-column layout (recommended for medium/long content) -->
-    <div class="resume-container-two-col">
-        <div class="left-column">
-            <div class="contact-info">
-                <h1>{{FULL_NAME}}</h1>
-                <p>{{EMAIL}}</p>
-                <p>{{PHONE}}</p>
-                <p>{{LOCATION}}</p>
-                <p><a href="{{LINKEDIN}}">LinkedIn</a></p>
-                <p><a href="{{PORTFOLIO}}">Portfolio</a></p>
-            </div>
-            <!-- Skills, Education, Certifications sections here -->
-        </div>
-        <div class="right-column">
-            <!-- Summary, Experience, Projects sections here -->
-        </div>
+        
+        <!-- Use standard semantic classes -->
+        <section class="section">
+            <h2 class="section-header">Section Title</h2>
+            <p class="body-text">Content here...</p>
+            <ul class="resume-list">
+                <li>List item with standard styling</li>
+            </ul>
+        </section>
     </div>
 </body>
 </html>
 \`\`\`
 
-CRITICAL A4 SINGLE-SHEET OPTIMIZATION RULES:
-1. MANDATORY: Fit ALL content on single A4 sheet (297mm height)
-2. ANALYZE content length and choose optimal layout:
-   - Short content (< 500 words): Single-column with larger fonts
-   - Medium content (500-800 words): Two-column layout recommended
-   - Long content (> 800 words): Compact single-column or tight two-column
-3. ENABLE two-column layouts for better space utilization and modern appeal
-4. AUTO-ADJUST styling if content exceeds A4:
-   - Reduce font sizes progressively (min: 9px body, 11px headings)
-   - Decrease margins and padding
-   - Tighten line spacing (min: 1.2)
-   - Compress section spacing
-5. Use CSS Grid/Flexbox for precise A4 space control
-6. Prioritize content density over decorative spacing
-7. Ensure professional appearance within A4 constraints
+IMPORTANT: Include ALL responsive utility classes in your CSS and apply them throughout your HTML structure.
 
 CRITICAL FINAL REQUIREMENTS - MANDATORY COMPLIANCE:
 
@@ -1338,7 +1071,7 @@ VALIDATION CHECKLIST - VERIFY YOUR OUTPUT INCLUDES:
 ✓ Complete <html>, <head>, and <body> structure
 ✓ 6 required placeholders exactly as specified (NOT including {{RESUME_CONTENT}})
 ✓ Resume content directly integrated and styled in HTML
-✓ Embedded CSS styles in <style> tag
+✓ Embedded CSS styles in <style> tag with ALL responsive utility classes
 ✓ Professional styling based on instructions
 ✓ Inline SVG icons or CSS-based icons (NO external CDN links)
 ✓ Self-contained visual elements that work in iframe and PDF
@@ -1357,32 +1090,145 @@ Generate the COMPLETE HTML template now (from DOCTYPE to closing HTML tag):
     // Remove markdown code blocks if present
     jsonResponse = jsonResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '')
     
+    interface SingleTemplateResponse {
+      htmlTemplate: string
+      defaultOption: string
+    }
+
+    let singleTemplateResponse: SingleTemplateResponse
     let multiStyleResponse: MultiStyleResponse
     
     try {
-      // Parse the JSON response
-      multiStyleResponse = JSON.parse(jsonResponse)
-      
-      // Validate the response structure
-      if (!multiStyleResponse.options || !Array.isArray(multiStyleResponse.options) || multiStyleResponse.options.length !== 3) {
-        throw new Error('Invalid response structure: expected 3 options')
-      }
-      
-      // Validate each option has required fields
-      for (const option of multiStyleResponse.options) {
-        if (!option.id || !option.name || !option.htmlTemplate || !option.fontSizes || !option.spacing || !option.layout) {
-          throw new Error(`Invalid option structure: ${option.id}`)
+      // Check if response is truncated
+      if (!jsonResponse.trim().endsWith('}')) {
+        console.log("Response appears truncated, attempting to fix...")
+        // Try to find the last complete part and close it
+        const lastCompleteIndex = jsonResponse.lastIndexOf('"')
+        if (lastCompleteIndex > 0) {
+          jsonResponse = jsonResponse.substring(0, lastCompleteIndex) + '"}\n}'
         }
       }
+
+      // Parse the JSON response for single template
+      singleTemplateResponse = JSON.parse(jsonResponse)
       
-      console.log("Successfully parsed multi-style response with", multiStyleResponse.options.length, "options")
+      // Validate the response structure
+      if (!singleTemplateResponse.htmlTemplate || !singleTemplateResponse.defaultOption) {
+        throw new Error('Invalid response structure: expected htmlTemplate and defaultOption')
+      }
+      
+      // Convert single template to multi-style format for compatibility
+      multiStyleResponse = {
+        options: [
+          {
+            id: "compact",
+            name: "Compact Layout",
+            description: "Smaller fonts and tight spacing for content-heavy resumes",
+            htmlTemplate: singleTemplateResponse.htmlTemplate,
+            targetHeight: "260mm",
+            fontSizes: {
+              h1: "18px",
+              h2: "14px",
+              h3: "12px",
+              body: "10px"
+            },
+            spacing: {
+              sectionMargin: "8px",
+              lineHeight: "1.2",
+              padding: "4px"
+            },
+            layout: {
+              type: "single-column",
+              columns: "1fr",
+              gap: "8px"
+            }
+          },
+          {
+            id: "standard",
+            name: "Standard Layout",
+            description: "Balanced fonts and spacing for normal content length",
+            htmlTemplate: singleTemplateResponse.htmlTemplate,
+            targetHeight: "260mm",
+            fontSizes: {
+              h1: "22px",
+              h2: "16px",
+              h3: "14px",
+              body: "12px"
+            },
+            spacing: {
+              sectionMargin: "12px",
+              lineHeight: "1.4",
+              padding: "8px"
+            },
+            layout: {
+              type: "single-column",
+              columns: "1fr",
+              gap: "12px"
+            }
+          },
+          {
+            id: "spacious",
+            name: "Spacious Layout",
+            description: "Larger fonts and generous spacing for shorter content",
+            htmlTemplate: singleTemplateResponse.htmlTemplate,
+            targetHeight: "260mm",
+            fontSizes: {
+              h1: "26px",
+              h2: "18px",
+              h3: "16px",
+              body: "14px"
+            },
+            spacing: {
+              sectionMargin: "16px",
+              lineHeight: "1.6",
+              padding: "12px"
+            },
+            layout: {
+              type: "two-column",
+              columns: "1fr 2fr",
+              gap: "16px"
+            }
+          }
+        ],
+        defaultOption: singleTemplateResponse.defaultOption
+      }
+      
+      console.log("Successfully parsed single responsive template")
       
     } catch (parseError) {
       console.error("Failed to parse JSON response:", parseError)
-      console.log("Raw response:", jsonResponse.substring(0, 500))
+      console.log("Raw response length:", jsonResponse.length)
+      console.log("Response ends with:", jsonResponse.slice(-100))
       
-      // Fallback to single template generation
-      const fallbackPrompt = `Generate a COMPLETE HTML resume template. Return ONLY the HTML code, no JSON, no explanations.
+      // Try to extract HTML from malformed JSON
+      const htmlMatch = jsonResponse.match(/"htmlTemplate":\s*"(.*?)(?="[,}])/)
+      if (htmlMatch && htmlMatch[1]) {
+        console.log("Extracted HTML from malformed JSON")
+        const extractedHTML = htmlMatch[1]
+          .replace(/\\n/g, '\n')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\')
+        
+        multiStyleResponse = {
+          options: [{
+            id: "optimal",
+            name: "Optimal Layout", 
+            description: "AI-generated optimal layout",
+            htmlTemplate: extractedHTML,
+            targetHeight: "297mm",
+            fontSizes: { h1: "22px", h2: "18px", h3: "16px", body: "14px" },
+            spacing: { sectionMargin: "12px", lineHeight: "1.4", padding: "16px" },
+            layout: { type: 'single-column' as const }
+          }],
+          defaultOption: "optimal"
+        }
+        
+        console.log("Successfully recovered template from malformed JSON")
+      } else {
+        console.log("Could not extract HTML, using fallback generation")
+        
+        // Fallback to simple template generation
+        const fallbackPrompt = `Generate a COMPLETE HTML resume template. Return ONLY the HTML code, no JSON, no explanations.
 
 RESUME CONTENT TO STYLE:
 ${resumeContent}
@@ -1441,6 +1287,7 @@ Generate the complete HTML now:`
         defaultOption: "standard"
       }
     }
+  }
     
     // Process each template option
     for (let i = 0; i < multiStyleResponse.options.length; i++) {
@@ -1493,6 +1340,9 @@ Generate the complete HTML now:`
       
       // Ensure PDF-compatible spacing and styling
       htmlTemplate = ensurePDFCompatibleSpacing(htmlTemplate)
+      
+      // Fix escaped CSS selectors (remove backslashes from CSS)
+      htmlTemplate = htmlTemplate.replace(/\\:/g, ':')
 
       // Update the option with the processed template
       multiStyleResponse.options[i].htmlTemplate = htmlTemplate
@@ -1518,3 +1368,4 @@ Generate the complete HTML now:`
     )
   }
 }
+

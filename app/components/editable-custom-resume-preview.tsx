@@ -58,10 +58,11 @@ interface EditableCustomResumePreviewProps {
   styleOptions?: MultiStyleResponse
   selectedStyleOption?: string
   onStyleOptionChange?: (optionId: string, htmlTemplate: string) => void
+  scale?: number
 }
 
 const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, EditableCustomResumePreviewProps>(
-  ({ htmlTemplate, personalInfo, resumeContent, isEditing, onContentChange, onPersonalInfoChange, styleOptions, selectedStyleOption, onStyleOptionChange }, ref) => {
+  ({ htmlTemplate, personalInfo, resumeContent, isEditing, onContentChange, onPersonalInfoChange, styleOptions, selectedStyleOption, onStyleOptionChange, scale = 1 }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const [editablePersonalInfo, setEditablePersonalInfo] = useState(personalInfo)
     const [isEditingPersonal, setIsEditingPersonal] = useState(false)
@@ -130,6 +131,15 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
       setEditablePersonalInfo(personalInfo)
     }, [personalInfo])
 
+    // Update current style option when selectedStyleOption changes
+    useEffect(() => {
+      if (selectedStyleOption && selectedStyleOption !== currentStyleOption) {
+        setCurrentStyleOption(selectedStyleOption)
+        // Reset scroll height check when style option changes
+        scrollHeightCheckRef.current = false
+      }
+    }, [selectedStyleOption, currentStyleOption])
+
     // Function to detect scroll height and select appropriate style option
     const detectAndSelectOptimalStyle = (iframeDoc: Document) => {
       if (!styleOptions || !styleOptions.options || scrollHeightCheckRef.current) return
@@ -194,6 +204,56 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
         .replace(/\{\{LINKEDIN\}\}/g, editablePersonalInfo.linkedIn)
         .replace(/\{\{PORTFOLIO\}\}/g, editablePersonalInfo.portfolio)
         .replace(/\{\{RESUME_CONTENT\}\}/g, resumeContent)
+
+      // Apply scaling to the entire document
+      const scaleCSS = `
+        <style id="resume-scaling">
+          /* Scaling Override - High Priority */
+          html, body {
+            transform: scale(${scale}) !important;
+            transform-origin: top left !important;
+            width: ${100 / scale}% !important;
+            height: ${100 / scale}% !important;
+            max-width: none !important;
+            max-height: none !important;
+            min-width: none !important;
+            min-height: none !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          /* Ensure container doesn't constrain scaling */
+          .resume-container,
+          .resume-container-two-col,
+          div[class*="container"] {
+            max-width: none !important;
+            max-height: none !important;
+            width: auto !important;
+            height: auto !important;
+            min-width: none !important;
+            min-height: none !important;
+          }
+          
+          /* Override any A4 constraints */
+          * {
+            max-width: none !important;
+            max-height: none !important;
+          }
+        </style>
+      `
+        
+      // Always apply scaling CSS (even for scale 1 to override any constraints)
+      if (processedHTML.includes('</head>')) {
+        processedHTML = processedHTML.replace('</head>', scaleCSS + '</head>')
+      } else if (processedHTML.includes('<body>')) {
+        processedHTML = processedHTML.replace('<body>', '<body>' + scaleCSS)
+      } else {
+        // Fallback: add at the beginning of the document
+        processedHTML = scaleCSS + processedHTML
+      }
+      
+      console.log('Applied scaling CSS for scale:', scale)
 
       // Ensure external resources can load in iframe by adding proper meta tags and PDF preview CSS
       if (!processedHTML.includes('<meta http-equiv="Content-Security-Policy"')) {
@@ -290,37 +350,71 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
         iframeDoc.write(processedHTML)
         iframeDoc.close()
         
-        // Scale the content to fit the iframe after loading
+        // Apply custom scaling after content loads
         setTimeout(() => {
-          const iframe = iframeRef.current
-          if (iframe && iframe.contentWindow) {
-            const iframeWidth = iframe.clientWidth
-            const iframeHeight = iframe.clientHeight
-            
-            // A4 dimensions in pixels (assuming 96 DPI)
-            const a4WidthPx = 794  // 210mm at 96 DPI
-            const a4HeightPx = 984 // 260mm at 96 DPI
-            
-            const scaleX = iframeWidth / a4WidthPx
-            const scaleY = iframeHeight / a4HeightPx
-            const scale = Math.min(scaleX, scaleY)
-            
-            const body = iframe.contentDocument?.body
-            if (body) {
-              body.style.transform = `scale(${scale})`
-              body.style.transformOrigin = 'top left'
-              body.style.width = `${a4WidthPx}px`
-              body.style.height = `${a4HeightPx}px`
-            }
-
-            // Detect optimal style after scaling
-            if (iframe.contentDocument) {
-              detectAndSelectOptimalStyle(iframe.contentDocument)
-            }
+          applyScalingToIframe()
+          // Check if we need to detect optimal style (for multi-style support)
+          if (iframeDoc) {
+            detectAndSelectOptimalStyle(iframeDoc)
           }
         }, 100)
+        
+
       }
     }
+
+    // Function to apply scaling directly to iframe content
+    const applyScalingToIframe = () => {
+      if (!iframeRef.current) return
+      
+      const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
+      if (iframeDoc) {
+        // Remove any existing scaling styles
+        const existingStyle = iframeDoc.getElementById('resume-scaling')
+        if (existingStyle) {
+          existingStyle.remove()
+        }
+        
+        // Add new scaling styles
+        const style = iframeDoc.createElement('style')
+        style.id = 'resume-scaling'
+        style.textContent = `
+          html, body {
+            transform: scale(${scale}) !important;
+            transform-origin: top left !important;
+            width: ${100 / scale}% !important;
+            max-width: none !important;
+            min-width: none !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            min-height: auto !important;
+          }
+          
+          .resume-container,
+          .resume-container-two-col,
+          div[class*="container"] {
+            max-width: none !important;
+            max-height: none !important;
+            width: auto !important;
+            height: auto !important;
+            min-width: none !important;
+            min-height: none !important;
+          }
+          
+          * {
+            max-width: none !important;
+            max-height: none !important;
+          }
+        `
+        
+        iframeDoc.head.appendChild(style)
+        console.log('Applied scaling directly to iframe:', scale)
+      }
+    }
+
+
 
     // Reset scroll height check when template changes
     useEffect(() => {
@@ -330,9 +424,19 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
     // Update iframe content when template or data changes
     useEffect(() => {
       if (iframeRef.current && htmlTemplate && !isEditing) {
+        console.log('Loading iframe content with scale:', scale)
         loadIframeContent(htmlTemplate)
       }
-    }, [htmlTemplate, editablePersonalInfo, resumeContent, isEditing])
+    }, [htmlTemplate, editablePersonalInfo, resumeContent, isEditing, scale])
+
+    // Apply scaling when scale changes (without resizing)
+    useEffect(() => {
+      if (iframeRef.current && htmlTemplate) {
+        setTimeout(() => {
+          applyScalingToIframe()
+        }, 50)
+      }
+    }, [scale])
 
     // Expose methods to parent component
     useImperativeHandle(ref, () => ({
@@ -637,7 +741,7 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
         )}
         
         {/* Resume Preview */}
-        <div className="w-full" style={{ aspectRatio: '210/260' }}>
+        <div className="w-full" style={{ height: '800px', overflow: 'hidden' }}>
           <iframe
             ref={iframeRef}
             className="w-full h-full"

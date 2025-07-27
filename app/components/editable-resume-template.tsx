@@ -25,6 +25,7 @@ interface EditableResumeTemplateProps {
   isEditing: boolean
   onContentChange?: (content: string) => void
   onPersonalInfoChange?: (personalInfo: any) => void
+  scale?: number
 }
 
 const formatTextWithMarkdown = (text: string) => {
@@ -60,7 +61,7 @@ const formatTextWithMarkdown = (text: string) => {
 }
 
 const EditableResumeTemplate = forwardRef<EditableResumeTemplateRef, EditableResumeTemplateProps>(
-  ({ resumeContent, personalInfo, isEditing, onContentChange, onPersonalInfoChange }, ref) => {
+  ({ resumeContent, personalInfo, isEditing, onContentChange, onPersonalInfoChange, scale = 1 }, ref) => {
     const [editablePersonalInfo, setEditablePersonalInfo] = useState(personalInfo)
     const [isEditingPersonal, setIsEditingPersonal] = useState(false)
     const [sections, setSections] = useState<{ [key: string]: string[] }>({})
@@ -289,7 +290,13 @@ const EditableResumeTemplate = forwardRef<EditableResumeTemplateRef, EditableRes
     }
 
     return (
-      <div ref={contentRef} className="bg-white p-4 max-w-4xl mx-auto" style={{ fontFamily: "Arial, sans-serif" }}>
+      <div ref={contentRef} className="bg-white p-4 max-w-4xl mx-auto" style={{ 
+        fontFamily: "Arial, sans-serif",
+        transform: `scale(${scale})`,
+        transformOrigin: 'top left',
+        width: `${100 / scale}%`,
+        height: 'auto'
+      }}>
         {/* Header Section */}
         <div className="text-center pb-2 mb-4 relative group">
           {isEditingPersonal ? (
