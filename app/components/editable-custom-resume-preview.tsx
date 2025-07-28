@@ -287,10 +287,10 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
         }
       }
       
-      /* Actual PDF print styles */
+      /* Actual PDF print styles - Allow natural page flow */
       @media print {
         @page {
-          margin: 0 !important;
+          margin: 0.5in !important;
           padding: 0 !important;
           size: A4 !important;
         }
@@ -298,16 +298,17 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
         html {
           margin: 0 !important;
           padding: 0 !important;
-          width: 210mm !important;
-          height: 297mm !important;
+          width: auto !important;
+          height: auto !important;
+          overflow: visible !important;
         }
         
         body {
           margin: 0 !important;
           padding: 0 !important;
-          width: 210mm !important;
-          height: 297mm !important;
-          overflow: hidden !important;
+          width: auto !important;
+          height: auto !important;
+          overflow: visible !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
           color-adjust: exact !important;
@@ -315,20 +316,58 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
         
         .resume-container,
         .resume-container-two-col {
-          width: 210mm !important;
-          height: 297mm !important;
-          max-width: 210mm !important;
-          max-height: 297mm !important;
-          overflow: hidden !important;
-          page-break-inside: avoid !important;
-          page-break-after: avoid !important;
+          width: 100% !important;
+          height: auto !important;
+          max-width: none !important;
+          max-height: none !important;
+          overflow: visible !important;
+          page-break-inside: auto !important;
+          page-break-after: auto !important;
+          page-break-before: auto !important;
+          break-inside: auto !important;
+          break-after: auto !important;
+          break-before: auto !important;
         }
         
         .left-column,
         .right-column,
         .sidebar,
         .main-content {
-          page-break-inside: avoid !important;
+          page-break-inside: auto !important;
+          break-inside: auto !important;
+          height: auto !important;
+          max-height: none !important;
+          overflow: visible !important;
+        }
+        
+        /* Allow content sections to break naturally */
+        section,
+        div[class*="section"],
+        .experience-section,
+        .education-section,
+        .skills-section,
+        .projects-section,
+        .certifications-section,
+        .awards-section {
+          page-break-inside: auto !important;
+          break-inside: auto !important;
+          height: auto !important;
+          max-height: none !important;
+          overflow: visible !important;
+        }
+        
+        /* Ensure individual entries can break across pages */
+        .experience-item,
+        .education-item,
+        .project-item,
+        .certification-item,
+        div[class*="entry"],
+        div[class*="item"],
+        ul li,
+        ol li {
+          page-break-inside: auto !important;
+          break-inside: auto !important;
+          overflow: visible !important;
         }
         
         * {
@@ -709,10 +748,10 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
 
     // Show iframe preview when not editing
     return (
-      <div className="w-full border rounded-lg overflow-hidden bg-white">
-        {/* Style Options Selector */}
+      <div className="w-full h-full bg-transparent">
+        {/* Style Options Selector - Move to top if exists */}
         {styleOptions && styleOptions.options.length > 1 && (
-          <div className="p-3 border-b bg-gray-50">
+          <div className="p-3 bg-white border-b border-gray-200 absolute top-0 left-0 right-0 z-30">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-700">Layout Options</h3>
               {autoSelectedOption && (
@@ -740,8 +779,13 @@ const EditableCustomResumePreview = forwardRef<EditableCustomResumePreviewRef, E
           </div>
         )}
         
-        {/* Resume Preview */}
-        <div className="w-full" style={{ height: '800px', overflow: 'hidden' }}>
+        {/* Resume Preview - No fixed height, fits within A4 container */}
+        <div 
+          className="w-full h-full" 
+          style={{ 
+            paddingTop: styleOptions && styleOptions.options.length > 1 ? '80px' : '0'
+          }}
+        >
           <iframe
             ref={iframeRef}
             className="w-full h-full"

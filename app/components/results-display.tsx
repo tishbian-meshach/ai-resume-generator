@@ -309,15 +309,12 @@ export function ResultsDisplay({
 
       const pdfOptimizationCSS = `
     <style>
-    /* Remove screen scaling from extracted CSS for PDF */
-    ${createScaledCSS(allPageCSS).replace(/transform:\s*scale\([^)]*\)[^;]*;?/g, '').replace(/width:\s*\d+(?:\.\d+)?%[^;]*;?/g, 'width: 100%;').replace(/height:\s*\d+(?:\.\d+)?%[^;]*;?/g, 'height: auto;')}
+    /* Simplified PDF optimization with unified scaling */
     
-    /* PDF Print Optimization */
-
     /* PDF Print Optimization - Intelligent page breaks */
     @media print {
       @page {
-        margin: 0.1in !important; /* Minimal margins to maximize content space */
+        margin: 0.5in !important; /* Reasonable margins for better print layout */
         size: A4 !important;
       }
       
@@ -551,20 +548,27 @@ export function ResultsDisplay({
         line-height: 1.2 !important;
       }
       
-      /* Reduce excessive margins that might cause premature page breaks */
-      div, section, article, p, ul, ol, li {
-        margin-top: 0 !important;
-        margin-bottom: ${0.05 * resumeScale}rem !important;
-        padding-bottom: 0 !important;
+      /* Optimize margins for better space utilization - less aggressive */
+      div, section, article {
+        margin-bottom: ${Math.max(0.1, 0.15 * resumeScale)}rem !important;
       }
       
-      /* Remove any bottom spacing that creates empty space */
+      p, ul, ol {
+        margin-top: 0 !important;
+        margin-bottom: ${Math.max(0.05, 0.1 * resumeScale)}rem !important;
+      }
+      
+      li {
+        margin-bottom: 0 !important;
+      }
+      
+      /* Remove excessive bottom spacing that creates empty space */
       body {
         margin-bottom: 0 !important;
         padding-bottom: 0 !important;
       }
       
-      /* Remove bottom margins from containers */
+      /* Optimize container margins */
       .resume-container,
       .resume-container-two-col,
       .left-column,
@@ -572,7 +576,7 @@ export function ResultsDisplay({
       .sidebar,
       .main-content {
         margin-bottom: 0 !important;
-        padding-bottom: 0 !important;
+        padding-bottom: ${Math.max(0.1, 0.2 * resumeScale)}rem !important;
       }
       
       /* Make sure the main content area uses full available height */
@@ -650,7 +654,7 @@ export function ResultsDisplay({
         position: relative !important;
       }
       
-      /* Target specific elements that commonly cause breaks */
+      /* Target specific elements that commonly cause breaks - optimize for space usage */
       .skills,
       .education,
       .experience,
@@ -664,10 +668,7 @@ export function ResultsDisplay({
       [class*="projects"],
       [class*="certifications"],
       [class*="awards"],
-      [class*="references"],
-      section:last-child,
-      div:last-child,
-      .resume-section:last-child {
+      [class*="references"] {
         page-break-before: auto !important;
         page-break-after: auto !important;
         page-break-inside: auto !important;
@@ -678,6 +679,62 @@ export function ResultsDisplay({
         position: relative !important;
         float: none !important;
         clear: none !important;
+        /* Minimize spacing around sections */
+        margin-top: ${Math.max(0.15, 0.2 * resumeScale)}rem !important;
+        margin-bottom: ${Math.max(0.1, 0.15 * resumeScale)}rem !important;
+      }
+      
+      /* Special handling for last sections to prevent unnecessary spacing */
+      section:last-child,
+      div:last-child,
+      .resume-section:last-child,
+      .certifications:last-child,
+      [class*="certifications"]:last-child {
+        page-break-before: auto !important;
+        page-break-after: auto !important;
+        page-break-inside: auto !important;
+        break-before: auto !important;
+        break-after: auto !important;
+        break-inside: auto !important;
+        display: block !important;
+        position: relative !important;
+        float: none !important;
+        clear: none !important;
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
+        /* Additional fixes for last section flow */
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        contain: none !important;
+        isolation: auto !important;
+      }
+      
+      /* Aggressive fix for certification sections specifically */
+      .certifications,
+      .certifications-section,
+      div[class*="certification"],
+      section[class*="certification"],
+      [class*="certifications"] {
+        page-break-before: auto !important;
+        page-break-after: auto !important;
+        page-break-inside: auto !important;
+        break-before: auto !important;
+        break-after: auto !important;
+        break-inside: auto !important;
+        display: block !important;
+        position: relative !important;
+        float: none !important;
+        clear: none !important;
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        contain: none !important;
+        isolation: auto !important;
+        margin-top: ${Math.max(0.15, 0.2 * resumeScale)}rem !important;
+        margin-bottom: ${Math.max(0.1, 0.15 * resumeScale)}rem !important;
       }
       
       /* Force content to be treated as a single continuous block */
@@ -699,10 +756,31 @@ export function ResultsDisplay({
         width: 100% !important;
         height: auto !important;
         max-height: none !important;
+        min-height: 0 !important;
         overflow: visible !important;
         position: relative !important;
         float: none !important;
         clear: none !important;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+        contain: none !important;
+        isolation: auto !important;
+      }
+      
+      /* Specifically target main resume containers to ensure they don't constrain content */
+      .resume-container,
+      .resume-container-two-col,
+      div[class*="resume-container"] {
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+        contain: none !important;
+        isolation: auto !important;
+        display: block !important;
+        position: relative !important;
       }
       
       /* Specifically target the last elements that might be stuck */
@@ -716,10 +794,10 @@ export function ResultsDisplay({
         padding-bottom: 0 !important;
       }
       
-      /* Force content to use full page height */
+      /* Ensure natural content flow without artificial height constraints */
       html, body {
         height: auto !important;
-        min-height: 100vh !important;
+        min-height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
       }
@@ -730,15 +808,21 @@ export function ResultsDisplay({
         max-height: none !important;
       }
       
-      /* Remove bottom spacing from all elements */
-      *:not(br) {
-        margin-bottom: 0 !important;
-        padding-bottom: 0 !important;
+      /* Optimize spacing between elements - less aggressive */
+      h1, h2, h3, h4, h5, h6 {
+        margin-bottom: ${Math.max(0.15, 0.2 * resumeScale)}rem !important;
       }
       
-      /* Only allow minimal spacing between elements */
+      /* Control section spacing without removing all margins */
+      .resume-section + .resume-section,
+      section + section,
+      div[class*="section"] + div[class*="section"] {
+        margin-top: ${Math.max(0.2, 0.3 * resumeScale)}rem !important;
+      }
+      
+      /* Preserve natural spacing for readability */
       * + * {
-        margin-top: ${0.05 * resumeScale}rem !important;
+        margin-top: inherit !important;
       }
       
       /* Specific fixes for common resume section structures */
@@ -751,7 +835,7 @@ export function ResultsDisplay({
         contain: none !important;
       }
       
-      /* Target job/education/project entries specifically */
+      /* Target job/education/project entries specifically - preserve reasonable spacing */
       .mb-4, .mb-6, .mb-8, /* Common Tailwind margin bottom classes */
       [class*="experience-"], [class*="education-"], [class*="project-"],
       [class*="job-"], [class*="work-"], [class*="school-"],
@@ -760,8 +844,9 @@ export function ResultsDisplay({
         page-break-inside: auto !important;
         break-inside: auto !important;
         contain: none !important;
-        margin-bottom: ${0.1 * resumeScale}rem !important;
-        padding-bottom: ${0.05 * resumeScale}rem !important;
+        /* Preserve original margins but make them scale-aware */
+        margin-bottom: inherit !important;
+        padding-bottom: inherit !important;
       }
       
       /* Force break opportunities after each major content block */
@@ -775,22 +860,7 @@ export function ResultsDisplay({
       }
     }
     
-    /* Screen display optimization */
-    @media screen {
-      html, body {
-        margin: 0;
-        padding: 0;
-        background: white;
-      }
-      
-      /* Only apply scaling to the preview container, not the entire document */
-      .resume-preview-container {
-        transform: scale(${resumeScale}) !important;
-        transform-origin: top left !important;
-        width: ${100 / resumeScale}% !important;
-        height: ${100 / resumeScale}% !important;
-      }
-    }
+    /* Screen display optimization - removed since using unified scaling in individual templates */
     </style>`
 
       // Pre-process HTML to improve page breaking by flattening structures
@@ -916,14 +986,14 @@ export function ResultsDisplay({
         
         if (processedTemplate) {
           console.log("Using rendered HTML from custom resume preview iframe")
-          // Remove scaling transforms and constraints that are only for preview
+          // Keep the content as-is but remove only the viewport scaling transforms
           processedTemplate = processedTemplate
-            .replace(/transform:\s*scale\([^)]*\)[^;]*;?/g, '')
-            .replace(/transform-origin:\s*[^;]*;?/g, '')
             .replace(/width:\s*\d+(?:\.\d+)?%[^;]*;?/g, 'width: 100%;')
             .replace(/height:\s*\d+(?:\.\d+)?%[^;]*;?/g, 'height: auto;')
-            .replace(/max-width:\s*none[^;]*;?/g, 'max-width: 210mm;')
-            .replace(/max-height:\s*none[^;]*;?/g, 'max-height: 297mm;')
+            // Remove only the HTML/body transform scaling, not individual element scaling
+            .replace(/html\s*,?\s*body\s*\{[^}]*transform:\s*scale\([^)]*\)[^}]*\}/g, '')
+            .replace(/html\s*\{[^}]*transform:\s*scale\([^)]*\)[^}]*\}/g, '')
+            .replace(/body\s*\{[^}]*transform:\s*scale\([^)]*\)[^}]*\}/g, '')
         } else {
           console.log("Falling back to manual template processing")
           // Fallback to manual processing if iframe content is not available
@@ -944,10 +1014,100 @@ export function ResultsDisplay({
             .replace(/style="([^"]*?)zoom:\s*[^;]*;?([^"]*)"/g, 'style="$1zoom: 1;$2"')
         }
 
-        // Apply scaling to all custom templates (whether from iframe or manual processing)
+        // Apply unified scaling approach that matches the preview exactly
         {
-          // For custom templates, apply scaling by modifying the template's CSS values directly
-          const scaleCustomTemplateCSS = (template: string) => {
+          // Add unified scaling CSS that matches preview behavior exactly
+          const addScalingCSS = (template: string) => {
+            const scalingCSS = `
+              <style id="pdf-scaling">
+                /* Unified scaling approach - matches preview exactly */
+                @media screen {
+                  /* Screen preview scaling */
+                  html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: white !important;
+                    overflow: visible !important;
+                  }
+                  
+                  body {
+                    transform: scale(${resumeScale}) !important;
+                    transform-origin: top left !important;
+                    width: ${100 / resumeScale}% !important;
+                    height: auto !important;
+                  }
+                }
+                
+                @media print {
+                  @page {
+                    margin: 0.5in !important;
+                    size: A4 !important;
+                  }
+                  
+                  /* PDF scaling to match A4 preview constraints */
+                  html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    overflow: visible !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                  }
+                  
+                  body {
+                    transform: scale(${resumeScale}) !important;
+                    transform-origin: top left !important;
+                    width: ${100 / resumeScale}% !important;
+                    height: auto !important;
+                    /* Ensure content fits within A4 page bounds like the preview */
+                    max-width: calc(210mm / ${resumeScale}) !important;
+                  }
+                  
+                  /* Ensure all containers flow naturally within page bounds */
+                  .resume-container,
+                  .resume-container-two-col,
+                  div[class*="container"],
+                  .left-column,
+                  .right-column,
+                  .sidebar,
+                  .main-content,
+                  section,
+                  div {
+                    max-width: 100% !important;
+                    max-height: none !important;
+                    height: auto !important;
+                    overflow: visible !important;
+                    page-break-inside: auto !important;
+                    break-inside: auto !important;
+                    position: relative !important;
+                  }
+                  
+                  /* Remove any conflicting scaling or sizing */
+                  *:not(body) {
+                    zoom: 1 !important;
+                    max-height: none !important;
+                  }
+                }
+              </style>
+            `
+            
+            // Insert the scaling CSS
+            if (template.includes('</head>')) {
+              return template.replace('</head>', scalingCSS + '</head>')
+            } else if (template.includes('<body>')) {
+              return template.replace('<body>', '<body>' + scalingCSS)
+            } else {
+              return scalingCSS + template
+            }
+          }
+          
+          // Apply the scaling CSS
+          processedTemplate = addScalingCSS(processedTemplate)
+          
+          console.log(`PDF scaling: Using unified transform scale(${resumeScale}) approach for both preview and PDF`)
+          
+          // Legacy function for comprehensive CSS property scaling (disabled - using zoom/transform instead)
+          const scaleCustomTemplateCSS_DISABLED = (template: string) => {
             let scaledTemplate = template
             
             // Scale font sizes in CSS and inline styles
@@ -1093,8 +1253,8 @@ export function ResultsDisplay({
             return scaledTemplate
           }
           
-          // Apply scaling to the template
-          processedTemplate = scaleCustomTemplateCSS(processedTemplate)
+          // Scaling already applied via addScalingCSS above
+          // processedTemplate = scaleCustomTemplateCSS(processedTemplate) // DISABLED
         }
         
         // Only add PDF optimization CSS if we're using the fallback manual processing
@@ -1209,7 +1369,7 @@ export function ResultsDisplay({
             zoom: 1 !important;
           }
           
-          /* Ensure content is not clipped and flows to multiple pages */
+          /* Ensure content flows naturally without artificial constraints */
           body {
             width: 100% !important;
             height: auto !important;
@@ -1218,6 +1378,9 @@ export function ResultsDisplay({
             overflow: visible !important;
             transform: none !important;
             zoom: 1 !important;
+            /* Remove any potential bottom spacing issues */
+            padding-bottom: 0 !important;
+            margin-bottom: 0 !important;
           }
           
           /* Allow line-by-line page breaks */
@@ -1474,7 +1637,8 @@ export function ResultsDisplay({
         }
 
         // Apply HTML preprocessing to custom templates for better page breaking
-        htmlContent = improvePageBreaking(processedTemplate)
+        // Temporarily disabled to test if this is causing spacing issues
+        htmlContent = processedTemplate // improvePageBreaking(processedTemplate)
       } else {
         console.log("Using default template")
         
@@ -1497,11 +1661,8 @@ export function ResultsDisplay({
           return
         }
 
-        // Create the default print document with extracted CSS (remove scaling transforms)
-        const cleanedCSS = createScaledCSS(allPageCSS)
-          .replace(/transform:\s*scale\([^)]*\)[^;]*;?/g, '')
-          .replace(/width:\s*\d+(?:\.\d+)?%[^;]*;?/g, 'width: 100%;')
-          .replace(/height:\s*\d+(?:\.\d+)?%[^;]*;?/g, 'height: auto;')
+        // Create the default print document with unified scaling approach
+        const cleanedCSS = createScaledCSS(allPageCSS) // Keep the scaled CSS as it has proper font/spacing scaling
         
         htmlContent = `
           <!DOCTYPE html>
@@ -1511,16 +1672,25 @@ export function ResultsDisplay({
               <style>
                 ${cleanedCSS}
                 
-                /* Basic document setup */
-                html, body {
-                  margin: 0;
-                  padding: 0;
-                  font-family: Arial, sans-serif;
-                  line-height: 1.4;
-                  color: #333;
-                  background: white;
-                  transform: none !important;
-                  zoom: 1 !important;
+                /* Unified scaling approach - matches preview exactly */
+                @media screen {
+                  /* Screen preview scaling */
+                  html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: white !important;
+                    overflow: visible !important;
+                    font-family: Arial, sans-serif;
+                    line-height: 1.4;
+                    color: #333;
+                  }
+                  
+                  body {
+                    transform: scale(${resumeScale}) !important;
+                    transform-origin: top left !important;
+                    width: ${100 / resumeScale}% !important;
+                    height: auto !important;
+                  }
                 }
                 
                 @media print {
@@ -1529,32 +1699,32 @@ export function ResultsDisplay({
                     size: A4 !important;
                   }
                   
-                  html {
+                  html, body {
                     margin: 0 !important;
                     padding: 0 !important;
-                    height: auto !important;
-                    min-height: 0 !important;
-                    max-height: none !important;
-                    transform: none !important;
-                    zoom: 1 !important;
-                  }
-                  
-                  body { 
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    height: auto !important;
-                    min-height: 0 !important;
-                    max-height: none !important;
+                    overflow: visible !important;
                     -webkit-print-color-adjust: exact !important;
                     print-color-adjust: exact !important;
                     color-adjust: exact !important;
-                    overflow: visible !important;
-                    transform: none !important;
-                    zoom: 1 !important;
+                    font-family: Arial, sans-serif;
+                    line-height: 1.4;
+                    color: #333;
+                    background: white;
                   }
                   
+                  /* PDF scaling to match preview behavior */
+                  body {
+                    transform: scale(${resumeScale}) !important;
+                    transform-origin: top left !important;
+                    width: ${100 / resumeScale}% !important;
+                    height: auto !important;
+                    /* Ensure content fits within A4 page bounds */
+                    max-width: calc(210mm / ${resumeScale}) !important;
+                  }
+                  
+                  /* Ensure all containers allow natural flow within the scaled body */
                   .bg-white.p-4.max-w-4xl.mx-auto {
-                    max-width: none !important;
+                    max-width: 100% !important;
                     margin: 0 !important;
                     padding: 15mm !important;
                     width: 100% !important;
@@ -1563,14 +1733,10 @@ export function ResultsDisplay({
                     max-height: none !important;
                     box-sizing: border-box !important;
                     overflow: visible !important;
-                    transform: none !important;
-                    zoom: 1 !important;
                   }
                   
-                  /* Ensure all containers allow natural flow */
-                  * {
-                    transform: none !important;
-                    zoom: 1 !important;
+                  /* Don't override body transform but clean up other elements */
+                  *:not(body) {
                     min-height: 0 !important;
                     max-height: none !important;
                     overflow: visible !important;
@@ -1714,7 +1880,8 @@ export function ResultsDisplay({
       }
       
       // For default templates, improve the HTML for better page breaking
-      if (!generatedContent.customHtmlTemplate) {
+      // Temporarily disabled to test if this is causing spacing issues
+      /*if (!generatedContent.customHtmlTemplate) {
         htmlContent = htmlContent.replace(
           /<div class="bg-white p-4 max-w-4xl mx-auto">\s*([\s\S]*?)\s*<\/div>/,
           (match, content) => {
@@ -1722,7 +1889,7 @@ export function ResultsDisplay({
             return `<div class="bg-white p-4 max-w-4xl mx-auto">${improvedContent}</div>`
           }
         )
-      }
+      }*/
       
       console.log("HTML content to write:", htmlContent.substring(0, 500))
       console.log("Full pdfOptimizationCSS:", pdfOptimizationCSS)
@@ -2010,25 +2177,73 @@ export function ResultsDisplay({
               className="mb-4"
             />
 
-            <div className="border rounded-lg overflow-hidden bg-gray-50">
-              {generatedContent.customHtmlTemplate ? (
-                // Show custom styled editable preview - Full A4 size
-                <div className="w-full">
-                  <EditableCustomResumePreview
-                    ref={editableCustomResumeRef}
-                    htmlTemplate={generatedContent.customHtmlTemplate}
-                    personalInfo={editedPersonalInfo}
-                    resumeContent={editedResumeContent}
-                    isEditing={isEditing}
-                    onContentChange={(newContent) => setEditedResumeContent(newContent)}
-                    onPersonalInfoChange={(newPersonalInfo) => setEditedPersonalInfo(newPersonalInfo)}
+            {/* A4 Size Guide - Only show for custom templates */}
+            {generatedContent.customHtmlTemplate && (
+              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-blue-800">
+                  <div className="w-4 h-4 border border-dashed border-blue-400 rounded-sm flex-shrink-0"></div>
+                  <span>The dashed rectangle shows A4 page boundaries. Use the scale slider to fit your content within this area.</span>
+                </div>
+              </div>
+            )}
 
-                    scale={resumeScale}
-                  />
+            <div className="border rounded-lg bg-gray-50">
+              {generatedContent.customHtmlTemplate ? (
+                // Show custom styled editable preview with A4 size indicator
+                <div className="w-full relative p-4">
+                  {/* A4 Size Indicator Rectangle with Fixed Dimensions */}
+                  <div className="relative mx-auto bg-white shadow-sm" 
+                       style={{ 
+                         width: '210mm', 
+                         height: '420mm', // Made taller to better accommodate content
+                         maxWidth: '100%',
+                         minHeight: '420mm'
+                       }}>
+                    {/* A4 Dimensions Border Indicator */}
+                    <div 
+                      className="absolute border-2 border-dashed border-blue-400 pointer-events-none z-10 transition-all duration-200"
+                      style={{
+                        top: 0,
+                        left: 0,
+                        width: '210mm',
+                        height: '297mm', // Actual A4 height
+                        backgroundColor: 'rgba(59, 130, 246, 0.03)'
+                      }}
+                    >
+                      {/* Corner markers for better visibility */}
+                      <div className="absolute top-0 left-0 w-4 h-4 border-l-2 border-t-2 border-blue-500"></div>
+                      <div className="absolute top-0 right-0 w-4 h-4 border-r-2 border-t-2 border-blue-500"></div>
+                      <div className="absolute bottom-0 left-0 w-4 h-4 border-l-2 border-b-2 border-blue-500"></div>
+                      <div className="absolute bottom-0 right-0 w-4 h-4 border-r-2 border-b-2 border-blue-500"></div>
+                      
+                      {/* A4 Size Label */}
+                      <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-sm font-medium z-20">
+                        📄 A4 Page (210×297mm)
+                      </div>
+                      {/* Scale indicator */}
+                      <div className="absolute top-2 right-2 bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-sm font-medium z-20">
+                        🔍 {Math.round(resumeScale * 100)}%
+                      </div>
+                    </div>
+                    
+                    {/* Resume Content - Constrained to A4 bounds */}
+                    <div className="relative z-0 w-full h-full">
+                      <EditableCustomResumePreview
+                        ref={editableCustomResumeRef}
+                        htmlTemplate={generatedContent.customHtmlTemplate}
+                        personalInfo={editedPersonalInfo}
+                        resumeContent={editedResumeContent}
+                        isEditing={isEditing}
+                        onContentChange={(newContent) => setEditedResumeContent(newContent)}
+                        onPersonalInfoChange={(newPersonalInfo) => setEditedPersonalInfo(newPersonalInfo)}
+                        scale={resumeScale}
+                      />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 // Show default editable template
-                <div className="max-h-96 overflow-y-auto" ref={resumeContentRef}>
+                <div className="p-4" ref={resumeContentRef}>
                   <EditableResumeTemplate 
                     ref={editableResumeRef} 
                     resumeContent={editedResumeContent} 
